@@ -54,19 +54,72 @@ rebuild
 
 > Brewfile にないアプリは rebuild 時に削除される（`brew bundle cleanup`）。
 
+## よく使う操作
+
+| やりたいこと | 方法 |
+|--------------|------|
+| 設定を反映 | `rebuild` |
+| CLI ツールを追加 | `home/packages.nix` に追記 → `rebuild` |
+| GUI アプリを追加 | `modules/homebrew.nix` の `casks` に追記 → `rebuild` |
+| App Store アプリを追加 | `masApps` に `"名前" = ID;`（ID は `mas search 名前`）→ `rebuild` |
+| VS Code 拡張を追加 | `modules/homebrew.nix` の `vscodeExtensions` に追記 → `rebuild` |
+| Claude Code を更新 | `rebuild`（自動で最新化）または `brew upgrade --cask claude-code` |
+| セキュリティツールを外す | `home/default.nix` に `my.security.enable = false;` |
+| 新しい .nix ファイルを作った | `git add` してから `rebuild`（flake は git 管理下のみ参照） |
+| 設定を前の状態に戻す | `git log` で確認 → `git checkout <コミット>` → `rebuild` |
+
+> ⚠️ **Homebrew は Brewfile が唯一の正。** `brew install` で手動追加したアプリは、
+> `modules/homebrew.nix` に書かないと次の `rebuild` でアンインストールされる。
+
 ## 主なツール
 
 ### デスクトップ
 
-| ツール | 概要 |
-|--------|------|
-| AeroSpace | タイル型ウィンドウマネージャ（`alt-hjkl`） |
-| Nixvim | Neovim（LSP / treesitter / telescope） |
-| Starship | プロンプト（Nerd Font プリセット） |
-| Ghostty | ターミナルエミュレータ |
-| Sketchybar | カスタムステータスバー |
-| jankyborders | ウィンドウ枠線 |
-| macSKK | 日本語 IME（SKK-JISYO.L） |
+| ツール | 管理 | 概要 |
+|--------|------|------|
+| AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
+| Sketchybar | `services.sketchybar` | 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
+| jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
+| Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
+| macSKK | cask + dotfile | 日本語 IME（SKK-JISYO.L） |
+
+- macOS のメニューバーは自動非表示（画面上端にマウスで表示）。sketchybar と重ならないため。
+- 「ディスプレイごとに個別の操作スペース」はオフ（AeroSpace 推奨）。
+
+#### AeroSpace キー
+
+| キー | 動作 |
+|------|------|
+| `alt-h/j/k/l` | フォーカス移動 |
+| `alt-shift-h/j/k/l` | ウィンドウ移動 |
+| `alt-1`〜`9` | ワークスペース切り替え |
+| `alt-shift-1`〜`9` | ウィンドウをワークスペースへ送る |
+| `alt-f` / `alt-shift-f` | フルスクリーン / フローティング切り替え |
+| `alt-/` / `alt-,` | タイル / アコーディオン切り替え |
+| `alt-tab` / `alt-shift-tab` | ワークスペースを次のモニターへ / モニター間フォーカス |
+
+### シェル
+
+| キー・コマンド | 動作 |
+|----------------|------|
+| `Ctrl-R` | 履歴検索（atuin） |
+| `Ctrl-T` / `Alt-C` | ファイル / ディレクトリ検索（fzf） |
+| `z <dir>` | よく使うディレクトリへ移動（zoxide） |
+| `ll` / `ls` | eza |
+| `cat` | bat |
+| `lg` | lazygit |
+| `vlc-bd` | Blu-ray 再生用に OpenJDK 17 を指定して VLC を起動 |
+
+### 開発
+
+| ツール | 管理 | 概要 |
+|--------|------|------|
+| Claude Code | cask `claude-code` | rebuild のたびに最新化（nixpkgs 版は更新が遅いため不使用） |
+| VS Code | cask + Brewfile `vscode` 行 | 拡張は Marketplace 最新版（Pylance 含む） |
+| Nixvim | `programs.nixvim` | LSP / treesitter / telescope |
+| OrbStack | cask | Docker / Linux VM |
+| Starship | `programs.starship` | プロンプト（Nerd Font シンボル） |
+| direnv + nix-direnv | `programs.direnv` | `.envrc` に `use flake` |
 
 ### インフラ
 
@@ -78,9 +131,9 @@ rebuild
 | nmap / mtr / iperf3 | ネットワーク診断 |
 | openlens | Kubernetes GUI |
 | tableplus | データベース GUI |
-| wireshark | パケットアナライザ |
+| wireshark-app | パケットアナライザ（ChmodBPF 導入済み） |
 
-### セキュリティ
+### セキュリティ（`home/security.nix`）
 
 | ツール | 概要 |
 |--------|------|
@@ -91,11 +144,25 @@ rebuild
 | hashcat / john | パスワード解析 |
 | maltego | OSINT GUI |
 
-### VPN
+### VPN / App Store
 
 | ツール | 概要 |
 |--------|------|
-| WireGuard | VPN（GUI: App Store 版） |
-| Tailscale | VPN（App Store 版） |
+| WireGuard / Tailscale | VPN（App Store 版） |
+| Slack / Windows App / Microsoft Excel / Brother iPrint&Scan | App Store 版 |
+
+## 変更履歴
+
+### 2026-10-20 リファクタリング
+
+- **Claude Code**: nixpkgs 版（古く更新されない）をやめ、cask に一本化。`/opt/homebrew/bin` を `environment.systemPath` で PATH に追加（手動の PATH 追加は不要に）
+- **sketchybar**: 空だった設定を実装し、nix-darwin の `services.sketchybar` で自動起動
+- **jankyborders**: home-manager の launchd 定義から `services.jankyborders` へ移行
+- **AeroSpace**: 設定を `programs.aerospace` で生成、ログイン時自動起動、`spans-displays` の設定ミスを修正
+- **VS Code**: Nix 版と cask 版の二重インストールを解消し cask に統一。拡張も Homebrew 管理へ
+- **OrbStack**: Nix から cask へ移行
+- **Homebrew**: trusted cask の二重記述を解消、`wireshark` → `wireshark-app`、`brew bundle cleanup` を自動実行、App Store アプリ（Windows App / Excel / Brother）を追加
+- **zsh**: compinit の二重実行と kubectl / helm 補完の毎回生成を削除（起動高速化）、`Ctrl-R` を atuin に統一、`vlc-bd` を修正
+- **構成**: ユーザー名を `flake.nix` で一元定義、セキュリティツールを `home/security.nix` に分離、git 管理を開始
 
 詳細は [CLAUDE.md](CLAUDE.md) を参照。
