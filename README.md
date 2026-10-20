@@ -10,33 +10,34 @@ nix-darwin + home-manager による macOS 環境の宣言的管理。
 
 ```bash
 # 設定を適用
-darwin-rebuild switch --flake ~/.config/nix-darwin
+sudo darwin-rebuild switch --flake ~/.config/nix-darwin
 
 # エイリアス（適用後）
 rebuild
 ```
 
+> flake は git 管理下のファイルのみ参照する。新規ファイルは `git add` してから適用。
+
 ## ファイル構成
 
 ```
 .
-├── flake.nix              # flake inputs / outputs エントリポイント
-├── flake.lock             # 依存関係のロック
+├── flake.nix              # inputs / outputs（user・host を一元定義）
+├── flake.lock
 ├── CLAUDE.md              # 詳細ドキュメント
 ├── modules/
-│   ├── system.nix         # nix 設定・システムパッケージ・macOS defaults・GC
-│   └── homebrew.nix       # Homebrew casks / brews / masApps
-├── home/
-│   ├── default.nix        # ユーザー情報・dotfiles・imports
-│   ├── packages.nix       # home.packages（CLI / インフラ / セキュリティ）
-│   ├── shell.nix          # zsh・starship・zoxide・fzf・lazygit・atuin・direnv
-│   ├── git.nix            # git + delta
-│   ├── nixvim.nix         # Neovim（nixvim）全設定
-│   ├── desktop.nix        # AeroSpace・Ghostty・jankyborders・sketchybar
-│   └── vscode.nix         # VSCode 拡張
-└── config/
-    └── sketchybar/
-        └── sketchybarrc   # Sketchybar バー設定スクリプト
+│   ├── system.nix         # nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults
+│   ├── homebrew.nix       # casks / brews / masApps / VS Code 拡張 / cleanup
+│   └── desktop.nix        # sketchybar・jankyborders（launchd サービス）
+└── home/
+    ├── default.nix        # ユーザー情報・dotfiles・imports
+    ├── packages.nix       # CLI / インフラ / クラウド
+    ├── security.nix       # セキュリティツール群（my.security.enable）
+    ├── shell.nix          # zsh・starship・atuin・zoxide・fzf・bat・eza・lazygit・direnv
+    ├── git.nix            # git + delta
+    ├── nixvim.nix         # Neovim（nixvim）
+    ├── desktop.nix        # AeroSpace・Ghostty
+    └── vscode.nix         # VS Code 表示言語
 ```
 
 ## 管理しているもの
@@ -44,14 +45,14 @@ rebuild
 | 種別 | 管理方法 |
 |------|----------|
 | システムパッケージ | `environment.systemPackages` (modules/system.nix) |
-| ユーザー開発ツール | `home.packages` (home/packages.nix) |
-| GUI アプリ（App Store 外） | `homebrew.casks` (modules/homebrew.nix) |
-| GUI アプリ（App Store） | `homebrew.masApps` (modules/homebrew.nix) |
-| Shell・プロンプト | `programs.*` (home/shell.nix) |
-| Neovim | nixvim (home/nixvim.nix) |
-| デスクトップ環境 | xdg.configFile / launchd (home/desktop.nix) |
-| VSCode 拡張 | `profiles.default.extensions` (home/vscode.nix) |
-| VSCode 設定 (`settings.json`) | Nix 管理外・VSCode が直接書き込み |
+| ユーザー開発ツール | `home.packages` / `programs.*` (home/) |
+| GUI アプリ・Claude Code | `homebrew.casks` (modules/homebrew.nix) |
+| App Store アプリ | `homebrew.masApps` (modules/homebrew.nix) |
+| VS Code 本体・拡張 | cask + Brewfile `vscode` 行 (modules/homebrew.nix) |
+| 常駐サービス | `services.sketchybar` / `services.jankyborders` (modules/desktop.nix) |
+| VS Code 設定 (`settings.json`) | Nix 管理外・VS Code が直接書き込み |
+
+> Brewfile にないアプリは rebuild 時に削除される（`brew bundle cleanup`）。
 
 ## 主なツール
 

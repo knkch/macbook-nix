@@ -12,22 +12,33 @@
     nixvim.inputs.nixpkgs.follows       = "nixpkgs";
   };
 
-  outputs = inputs @ { self, nix-darwin, home-manager, nixvim, ... }:
+  outputs = { self, nixpkgs, nix-darwin, home-manager, nixvim, ... }:
+  let
+    system = "aarch64-darwin";
+    host   = "KokinoMacBook-Pro";
+    # ユーザー名はここだけで定義し、各モジュールへ引数 `user` として渡す
+    user   = "konkichi";
+  in
   {
-    darwinConfigurations."KokinoMacBook-Pro" = nix-darwin.lib.darwinSystem {
-      specialArgs = { inherit self; };
+    darwinConfigurations.${host} = nix-darwin.lib.darwinSystem {
+      specialArgs = { inherit self user; };
       modules = [
         ./modules/system.nix
         ./modules/homebrew.nix
+        ./modules/desktop.nix
         home-manager.darwinModules.home-manager
         {
           home-manager.useGlobalPkgs       = true;
           home-manager.useUserPackages     = true;
           home-manager.backupFileExtension = "backup";
-          home-manager.users.konkichi      = import ./home;
+          home-manager.extraSpecialArgs    = { inherit user; };
+          home-manager.users.${user}       = import ./home;
           home-manager.sharedModules       = [ nixvim.homeModules.nixvim ];
         }
       ];
     };
+
+    # `nix fmt` で整形
+    formatter.${system} = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
   };
 }

@@ -1,7 +1,8 @@
-{ pkgs, lib, ... }:
+{ pkgs, user, ... }:
 {
   imports = [
     ./packages.nix
+    ./security.nix
     ./shell.nix
     ./git.nix
     ./nixvim.nix
@@ -10,9 +11,9 @@
   ];
 
   # ── User / Home ─────────────────────────────────────────────────────────── #
-  home.username      = "konkichi";
-  home.homeDirectory = lib.mkForce "/Users/konkichi";
-  home.stateVersion  = "25.05";
+  # homeDirectory は nix-darwin の users.users.<user>.home から自動で決まる
+  home.username     = user;
+  home.stateVersion = "25.05";
 
   programs.home-manager.enable = true;
 
@@ -33,9 +34,4 @@
   # Blu-ray AACS キーデータベース格納先
   # keydb.cfg は FindVUK Online Database から手動でダウンロードして配置する
   home.file."Library/Preferences/aacs/.keep".text = "";
-
-  # VSCode 表示言語を日本語に固定
-  home.file."Library/Application Support/Code/User/locale.json".text = ''
-    { "locale": "ja" }
-  '';
 }

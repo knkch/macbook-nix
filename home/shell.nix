@@ -1,26 +1,31 @@
-{ ... }:
+{ lib, ... }:
 {
   # ── Zsh ─────────────────────────────────────────────────────────────────── #
+  # compinit は home-manager（enableCompletion）が実行するので手動で呼ばない
+  # kubectl / helm 等の補完は nix パッケージ同梱のものが fpath 経由で読まれる
   programs.zsh = {
     enable                    = true;
     autosuggestion.enable     = true;
     syntaxHighlighting.enable = true;
     shellAliases = {
-      rebuild = "darwin-rebuild switch --flake ~/.config/nix-darwin";
+      rebuild = "sudo darwin-rebuild switch --flake ~/.config/nix-darwin";
       ll      = "eza -la --icons";
       cat     = "bat";
       lg      = "lazygit";
       # Blu-ray 再生: BD-J メニューに OpenJDK 17 が必要（最新 JDK はクラッシュ）
-      vlc-bd  = "JAVA_HOME=/opt/homebrew/opt/openjdk@17 open -a VLC";
+      # `open` 経由では環境変数が渡らないため --env で指定する
+      vlc-bd  = "open --env JAVA_HOME=/opt/homebrew/opt/openjdk@17 -a VLC";
     };
-    initContent = ''
-      autoload -Uz compinit && compinit
-      zstyle ':completion:*' menu select
-      WORDCHARS='*?_-.[]~=&;!#$%^(){}<>'
-      eval "$(atuin init zsh)"
-      source <(kubectl completion zsh)
-      source <(helm completion zsh)
-    '';
+    initContent = lib.mkMerge [
+      ''
+        zstyle ':completion:*' menu select
+        WORDCHARS='*?_-.[]~=&;!#$%^(){}<>'
+      ''
+      # fzf も <C-r> を奪うので、最後に atuin へ割り当て直す
+      (lib.mkAfter ''
+        bindkey '^r' atuin-search
+      '')
+    ];
   };
 
   # ── Starship ─────────────────────────────────────────────────────────────── #
@@ -63,26 +68,22 @@
     };
   };
 
-  # ── Zoxide ───────────────────────────────────────────────────────────────── #
-  # 使い方: `z <dir>` で履歴学習型移動
-  programs.zoxide = {
-    enable               = true;
-    enableZshIntegration = true;
-  };
+  # ── 履歴 / 移動 / 検索 ──────────────────────────────────────────────────── #
+  # atuin: <C-r> 履歴 fuzzy 検索・同期
+  programs.atuin.enable = true;
 
-  # ── Fzf ──────────────────────────────────────────────────────────────────── #
-  # <C-r> 履歴検索 / <C-t> ファイル検索 / Alt-c ディレクトリ移動
-  programs.fzf = {
-    enable               = true;
-    enableZshIntegration = true;
-  };
+  # zoxide: `z <dir>` で履歴学習型移動
+  programs.zoxide.enable = true;
 
-  # ── Lazygit ──────────────────────────────────────────────────────────────── #
-  # 使い方: `lg` で起動
-  programs.lazygit.enable = true;
+  # fzf: <C-t> ファイル検索 / Alt-c ディレクトリ移動（<C-r> は atuin）
+  programs.fzf.enable = true;
 
-  # ── Direnv + nix-direnv ──────────────────────────────────────────────────── #
-  # 使い方: プロジェクトルートに `.envrc` を作り `use flake` と書いて `direnv allow`
+  # ── CLI ツール ───────────────────────────────────────────────────────────── #
+  programs.bat.enable     = true;
+  programs.eza.enable     = true;
+  programs.lazygit.enable = true;   # `lg` で起動
+
+  # direnv + nix-direnv: `.envrc` に `use flake` と書いて `direnv allow`
   programs.direnv = {
     enable            = true;
     nix-direnv.enable = true;
