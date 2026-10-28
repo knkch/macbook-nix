@@ -72,6 +72,7 @@ in
       "claude"
       "discord"
       "webex"                   # App Store 版は画面共有・マイク権限が不安定
+      "zoom"
 
       # Gaming
       "steam"
@@ -88,6 +89,7 @@ in
 
       # Media / Blu-ray
       "vlc"
+      "media-center"            # JRiver Media Center（auto_updates のため rebuild ではメジャー更新されない）
 
       # ── Infrastructure ──────────────────────────────────────────────────── #
       "wireshark-app"   # パケットアナライザ（ChmodBPF は導入済み）
