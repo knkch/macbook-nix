@@ -28,7 +28,7 @@ rebuild
 ├── modules/
 │   ├── system.nix         # nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults
 │   ├── homebrew.nix       # casks / brews / masApps / VS Code 拡張 / cleanup
-│   └── desktop.nix        # sketchybar・jankyborders（launchd サービス）
+│   └── desktop.nix        # sketchybar（現在無効）・jankyborders（launchd サービス）
 └── home/
     ├── default.nix        # ユーザー情報・dotfiles・imports
     ├── packages.nix       # CLI / インフラ / クラウド
@@ -61,6 +61,7 @@ rebuild
 | 設定を反映 | `rebuild` |
 | CLI ツールを追加 | `home/packages.nix` に追記 → `rebuild` |
 | GUI アプリを追加 | `modules/homebrew.nix` の `casks` に追記 → `rebuild` |
+| 手動で入れたアプリを cask 管理へ移す | `brew install --cask --adopt <cask>` → `casks` に追記 → `rebuild`（先に adopt しないと「既にアプリがある」で失敗） |
 | App Store アプリを追加 | `masApps` に `"名前" = ID;`（ID は `mas search 名前`）→ `rebuild` |
 | VS Code 拡張を追加 | `modules/homebrew.nix` の `vscodeExtensions` に追記 → `rebuild` |
 | Claude Code を更新 | `rebuild`（自動で最新化）または `brew upgrade --cask claude-code` |
@@ -78,13 +79,16 @@ rebuild
 | ツール | 管理 | 概要 |
 |--------|------|------|
 | AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
-| Sketchybar | `services.sketchybar` | 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
+| Sketchybar | `services.sketchybar` | **現在は無効**（設定は残置）。有効時: 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
 | jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
 | Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
 | macSKK | cask + dotfile | 日本語 IME（SKK-JISYO.L） |
 
-- macOS のメニューバーは自動非表示（画面上端にマウスで表示）。sketchybar と重ならないため。
-- 「ディスプレイごとに個別の操作スペース」はオフ（AeroSpace 推奨）。
+- macOS のメニューバーは通常表示（sketchybar 無効中のため）。sketchybar を戻すときは自動非表示に戻し、AeroSpace の上ギャップを 37 にする。
+- 「ディスプレイごとに個別の操作スペース」はオフ（AeroSpace 推奨、反映にはログアウトが必要）。
+- Dock は自動非表示、操作スペースの自動並べ替えはオフ、Mission Control はアプリごとにグループ化。
+- ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準のウィンドウタイル（画面端ドラッグ / Option+ドラッグ）はオフ（AeroSpace と競合するため）。
+- 初回のみ手動: AeroSpace にアクセシビリティ許可を与え、標準の Space を各ディスプレイ 1 つに減らす。
 
 #### AeroSpace キー
 
@@ -151,7 +155,23 @@ rebuild
 | WireGuard / Tailscale | VPN（App Store 版） |
 | Slack / Windows App / Microsoft Excel / Brother iPrint&Scan | App Store 版 |
 
+### Nix / Homebrew 管理外のアプリ
+
+手動インストールのまま残しているもの（理由は [CLAUDE.md](CLAUDE.md) を参照）:
+Parallels Desktop 26 / VMware Fusion 13 / MakeMKV 2.0 / e-Gov電子申請アプリケーション /
+Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox に同梱）
+
+> Intel 専用（Rosetta が必要）: Maltego / e-Gov電子申請アプリケーション / Brother ドライバの常駐プロセス
+
 ## 変更履歴
+
+### 2026-10-29 AeroSpace 向け macOS 設定
+
+- **sketchybar**: 無効化（設定は残置）。メニューバーを通常表示に戻し、AeroSpace の上ギャップを 37 → 5 に
+- **macOS defaults**: Dock 自動非表示・`expose-group-apps` を追加、WindowManager（ステージマネージャ・標準タイル機能など）を正式オプションで無効化
+- **Homebrew**: `zoom` を追加、手動インストールの JRiver Media Center を `--adopt` で取り込み `media-center` として管理
+- **AeroSpace**: sketchybar への通知（`exec-on-workspace-change`）を `services.sketchybar.enable` に連動させ、無効時は呼ばないように
+- **調査**: Intel 専用アプリと Nix 管理外アプリを洗い出し、一覧化
 
 ### 2026-10-20 リファクタリング
 

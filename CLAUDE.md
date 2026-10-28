@@ -22,9 +22,9 @@ rebuild   # zsh エイリアス
 | ファイル | 役割 |
 |----------|------|
 | `flake.nix` | inputs / outputs。`user` / `host` はここで一元定義し `specialArgs` で各モジュールへ |
-| `modules/system.nix` | nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults・GC |
+| `modules/system.nix` | nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults（Dock / Spaces / WindowManager 含む）・GC |
 | `modules/homebrew.nix` | Homebrew casks / brews / masApps / VS Code 拡張 / cleanup |
-| `modules/desktop.nix` | 常駐サービス: sketchybar（設定・プラグイン込み）、jankyborders |
+| `modules/desktop.nix` | 常駐サービス: sketchybar（設定・プラグイン込み、現在は無効）、jankyborders |
 | `home/default.nix` | ユーザー情報・dotfiles・imports |
 | `home/packages.nix` | 一般 CLI / インフラ / クラウドツール |
 | `home/security.nix` | セキュリティツール群（`my.security.enable` で一括オン・オフ） |
@@ -79,7 +79,24 @@ rebuild   # zsh エイリアス
 | Brother iPrint&Scan | 1193539993 | |
 
 > macSKK / XLD は mas インストール失敗のため cask で管理。
-> webex は App Store 版もあるが、画面共有・マイク権限問題のため cask。
+> webex は App Store 版もあるが、画面共有・マイク権限問題のため cask。zoom も cask で管理。
+
+### 既存アプリを cask 管理へ移す場合
+
+nix-darwin 25.05 の cask 指定には `--adopt` がないため、手動インストール済みのアプリをそのまま
+`casks` に書くと rebuild が「既にアプリがある」で失敗する。先に `brew install --cask --adopt <cask>` で
+取り込んでから `casks` に追記する（例: `media-center`）。
+
+### Nix / Homebrew 管理外のアプリ（手動インストール）
+
+| アプリ | 理由 |
+|--------|------|
+| Parallels Desktop 26 | cask は 27（有償のメジャー更新）。取り込むとライセンス外の版へ上がるおそれ |
+| VMware Fusion 13 | cask 廃止（Broadcom アカウント経由の配布のみ） |
+| MakeMKV 2.0 | cask（1.18.x）より新しい版を手動導入済み |
+| e-Gov電子申請アプリケーション | cask なし。Intel 専用 |
+| Pioneer DJ FwUpdateManager（`/Applications/Pioneer`） | rekordbox のインストーラが同梱で導入。単体の cask なし（rekordbox 本体は cask 管理） |
+| Brother ドライバ（Push Scan Tool） | pkg インストーラ。Intel 専用の常駐プロセスあり（印刷は AirPrint のため不要） |
 
 ---
 
@@ -88,10 +105,20 @@ rebuild   # zsh エイリアス
 | 要素 | 管理 | 備考 |
 |------|------|------|
 | AeroSpace | 本体: cask / 設定: `programs.aerospace`（home/desktop.nix） | `start-at-login = true`。キー割当は下記 |
-| sketchybar | `services.sketchybar`（modules/desktop.nix） | launchd で常駐。左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
+| sketchybar | `services.sketchybar`（modules/desktop.nix） | **現在は無効**（`enable = false`、設定は残置）。有効時: 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
 | jankyborders | `services.jankyborders`（modules/desktop.nix） | round, width=5 |
-| メニューバー | `_HIHideMenuBar = true` | sketchybar と重ならないよう自動非表示 |
-| Spaces | `spans-displays = true` | AeroSpace 推奨（ディスプレイごとの個別スペースをオフ） |
+| メニューバー | `_HIHideMenuBar = false` | sketchybar 無効中は標準メニューバーを表示。`true` の行はコメントアウトで残置 |
+| AeroSpace ギャップ | `gaps.outer.top = 5`（home/desktop.nix） | sketchybar 有効時は `37`（バーの高さ 32 + 5）に戻す |
+| Spaces | `spans-displays = true` | AeroSpace 推奨（ディスプレイごとの個別スペースをオフ）。反映にはログアウトが必要 |
+| Dock | `autohide = true` / `mru-spaces = false` / `expose-group-apps = true` | 自動非表示・スペース自動並べ替えオフ・Mission Control でアプリごとにグループ化 |
+| WindowManager | `GloballyEnabled` / `EnableStandardClickToShowDesktop` / `EnableTilingByEdgeDrag` / `EnableTopTilingByEdgeDrag` / `EnableTilingOptionAccelerator` すべて `false` | ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準タイル機能をオフ（AeroSpace と競合するため） |
+
+sketchybar を再び有効にする手順: `services.sketchybar.enable = true`、`_HIHideMenuBar = true`（コメントを外し `false` 行を削除）、
+AeroSpace の `gaps.outer.top = 37`。AeroSpace の `exec-on-workspace-change`（sketchybar への通知）は
+`osConfig.services.sketchybar.enable` に連動して自動で有効・無効になる。
+
+AeroSpace 導入時の手動作業: アクセシビリティ許可（プライバシーとセキュリティ > アクセシビリティ）、
+`spans-displays` 反映のためのログアウト、標準の Space を各ディスプレイ 1 つに減らす。
 
 AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`・`alt-shift-N` ワークスペース /
 `alt-f` フルスクリーン / `alt-tab` ワークスペースを次のモニターへ。
