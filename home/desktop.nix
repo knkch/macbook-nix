@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, osConfig, ... }:
 let
   workspaces = map toString (lib.range 1 9);
 in
@@ -13,13 +13,14 @@ in
       start-at-login = true;
 
       # sketchybar にワークスペース切り替えを通知（AeroSpace は PATH が最小なので絶対パス）
-      exec-on-workspace-change = [
+      # sketchybar 無効時は通知しない
+      exec-on-workspace-change = lib.optionals osConfig.services.sketchybar.enable [
         "/bin/bash" "-c"
         "/run/current-system/sw/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE"
       ];
 
       gaps = {
-        outer = { left = 5; right = 5; top = 37; bottom = 5; }; # top = sketchybar の高さ 32 + 5
+        outer = { left = 5; right = 5; top = 5; bottom = 5; };
         inner = { horizontal = 5; vertical = 5; };
       };
 

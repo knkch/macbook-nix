@@ -49,12 +49,23 @@
   # ── macOS Defaults ───────────────────────────────────────────────────────── #
   system.defaults = {
     # AeroSpace 推奨: 「ディスプレイごとに個別の操作スペース」をオフ
-    spaces.spans-displays = true;
-    dock.mru-spaces       = false;
-    # sketchybar と重ならないようメニューバーを自動的に隠す
-    NSGlobalDomain._HIHideMenuBar = true;
+    spaces.spans-displays = true;            # 要ログアウト
+    dock = {
+      expose-group-apps = true;              # Mission Control でアプリごとにグループ化
+      mru-spaces        = false;             # 操作スペースの自動並べ替えオフ
+      autohide          = true;              # Dock 自動非表示
+    };
+    WindowManager = {
+      GloballyEnabled                  = false;  # ステージマネージャ オフ
+      EnableStandardClickToShowDesktop = false;  # 壁紙クリックでデスクトップ表示オフ
+      EnableTilingByEdgeDrag           = false;  # 画面端ドラッグでタイル表示オフ
+      EnableTopTilingByEdgeDrag        = false;  # メニューバーへドラッグでフルスクリーンオフ
+      EnableTilingOptionAccelerator    = false;  # Option+ドラッグでタイル表示オフ
+    };
+    # SketchyBar 有効化時はメニューバーを自動的に隠す（現在 SketchyBar は無効）
+    # NSGlobalDomain._HIHideMenuBar = true;
+    NSGlobalDomain._HIHideMenuBar = false;
     CustomUserPreferences = {
-      "com.apple.WindowManager".GloballyEnabled     = false;
       ".GlobalPreferences".NSQuitAlwaysKeepsWindows = false;
       "com.apple.loginwindow".TALLogoutSavesState   = false;
     };

@@ -60,7 +60,7 @@ in
   # ── Sketchybar（ステータスバー）──────────────────────────────────────────── #
   # aerospace CLI は Homebrew cask 提供（/opt/homebrew/bin は systemPath 経由で PATH に入る）
   services.sketchybar = {
-    enable = true;
+    enable = false;
     config = ''
       sketchybar --bar position=top height=32 blur_radius=30 color=0xcc1a1b26 \
         padding_left=8 padding_right=8
