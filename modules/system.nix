@@ -43,7 +43,7 @@
     yazi
     picocom
     minicom
-    xxd
+    # xxd は macOS 標準（/usr/bin/xxd）を使う
   ];
 
   # ── macOS Defaults ───────────────────────────────────────────────────────── #

@@ -35,14 +35,6 @@ let
     [i.ssid.isNil() ? "" : i.ssid.js, i.wlanChannel.isNil() ? "" : i.wlanChannel.channelNumber, i.rssiValue].join("\x1f");
   '';
 
-  # カメラ: 接続されているカメラと、ほかのアプリが使用中か（AVFoundation）
-  #   出力: <カメラ名> US <1 = 使用中 / 0>
-  cameraList = pkgs.writeText "sketchybar-cameras.js" ''
-    $.NSBundle.bundleWithPath("/System/Library/Frameworks/AVFoundation.framework").load;
-    $.NSClassFromString("AVCaptureDevice").devicesWithMediaType("vide").js
-      .map(d => [d.localizedName.js, d.isInUseByAnotherApplication ? 1 : 0].join("\x1f")).join("\n");
-  '';
-
   # メニューの行にマウスが乗ったら背景を付ける
   hover = plugin "hover" ''
     case "$SENDER" in
@@ -58,7 +50,6 @@ let
     FG=0xffc0caf5; SUB=0xff9aa5ce; DIM=0xff565f89; ACCENT=0xff7aa2f7; GREEN=0xff9ece6a; RED=0xfff7768e
     POPUPS="apple clock notify input battery volume bluetooth wifi vpn music"
     MPC=${pkgs.mpc}/bin/mpc
-    MONO="HackGen:Regular:13.0" # 全角 = 英数字 2 文字分の等幅（カレンダーの列を揃える）
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
     NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"
     WIFI_SCAN="$HOME/Library/Caches/sketchybar-wifi-scan" # 直近のスキャン結果
@@ -70,7 +61,6 @@ let
 
     wifi_dev() { networksetup -listallhardwareports | awk '/Hardware Port: Wi-Fi/{getline; print $2}'; }
     preferred_networks() { networksetup -listpreferredwirelessnetworks "$1" | tail -n +2 | sed 's/^[[:space:]]*//'; }
-    wifi_scan() { osascript -l JavaScript ${wifiScan} 2>/dev/null; }
     # 今つながっているネットワーク名。取れなければ、直近のスキャン結果から
     # 同じチャンネルで電波の強さが一番近いものを推定する
     wifi_ssid() {
@@ -82,9 +72,6 @@ let
         $4 == ch { d = $2 - rssi; if (d < 0) d = -d; if (best == "" || d < bd) { best = $1; bd = d } }
         END { if (best != "") print best }' "$WIFI_SCAN"
     }
-    cameras() { osascript -l JavaScript ${cameraList} 2>/dev/null; }
-    vget() { osascript -e "$1 of (get volume settings)"; }
-    ts_json() { ${tailscale} status --json 2>/dev/null; }
     # 集中モードの切り替え用ショートカット（名前が「集中モード: 」で始まるもの）
     # ショートカットの名前は濁点が分かれた形（NFD。「ド」=「ト」+「゛」）で返ってくるので、
     # 比べるときは nfc で濁点をまとめた形にそろえる。実行するときは元の名前のまま使う
@@ -119,8 +106,8 @@ let
       fi
     }
 
-    # 作ったメニュー項目（幅を揃える対象を探すため）と、クリックできる項目（ハイライトする）
-    MENU_ROWS=(); CLICKABLE_ROWS=(); CENTER_ROWS=() # CENTER_ROWS: メニュー幅いっぱいで中央に寄せる行
+    # クリックできる行（ハイライトし、幅を揃える）と、メニュー幅いっぱいで中央に寄せる行
+    CLICKABLE_ROWS=(); CENTER_ROWS=()
     # メニューの中身はここに貯めて、最後に 1 回の sketchybar 呼び出しでまとめて送る。
     # 途中で別の処理（裏のスキャン後の作り直しなど）が割り込んで行の順番が崩れないように
     BATCH=()
@@ -215,21 +202,7 @@ let
       if [ $# -gt 0 ]; then style+=(icon.color=$FG label.color=$FG click_script="$ACTION $*")
       else style+=(icon.color=$SUB label.color=$SUB); fi
       BATCH+=(--add item "$parent.dyn.$name" popup."$parent" --set "$parent.dyn.$name" "''${style[@]}")
-      MENU_ROWS+=("$parent.dyn.$name")
       estimate "$label" 62 75 125
-      [ $# -gt 0 ] && make_clickable "$parent.dyn.$name"
-      return 0
-    }
-
-    # menu_text <親> <名前> <テキスト> [色] [操作 引数...]（等幅フォント・アイコンなし。カレンダー表示用）
-    menu_text() {
-      local parent="$1" name="$2" text="$3" color="''${4:-$FG}"; shift 3; [ $# -gt 0 ] && shift
-      local style=(icon.drawing=off label="$text" label.font="$MONO" label.color="$color"
-                   label.padding_left=12 label.padding_right=16)
-      [ $# -gt 0 ] && style+=(click_script="$ACTION $*")
-      BATCH+=(--add item "$parent.dyn.$name" popup."$parent" --set "$parent.dyn.$name" "''${style[@]}")
-      MENU_ROWS+=("$parent.dyn.$name")
-      estimate "$text" 40 70 135
       [ $# -gt 0 ] && make_clickable "$parent.dyn.$name"
       return 0
     }
@@ -239,7 +212,6 @@ let
       BATCH+=(--add item "$1.dyn.$2" popup."$1" --set "$1.dyn.$2" icon.drawing=off
         label="$3" label.font="Hack Nerd Font:Bold:11.0" label.color=$ACCENT
         label.padding_left=10 padding_left=0)
-      MENU_ROWS+=("$1.dyn.$2")
       estimate "$3" 24 65 110
     }
 
@@ -252,7 +224,6 @@ let
           slider.background.height=6 slider.background.corner_radius=3 slider.background.color=0xff414868
           slider.knob="●" slider.knob.color=$FG padding_right=16 script="$5"
         --subscribe "$1.dyn.$2" mouse.clicked)
-      MENU_ROWS+=("$1.dyn.$2")
       [ "$MAX_WIDTH" -lt 290 ] && MAX_WIDTH=290
       return 0
     }
@@ -367,6 +338,26 @@ let
 
     pane() { open "x-apple.systempreferences:$1"; }
     refresh() { sleep "$1"; sketchybar --update; }
+    # click_menuextra <識別子>: 隠れている標準メニューバーの項目をアクセシビリティ経由でクリック
+    # （sketchybar にアクセシビリティの許可が必要。見つからなければ失敗を返す）
+    click_menuextra() {
+      [ "$(osascript - "$1" <<'AS' 2>/dev/null
+    on run argv
+      tell application "System Events" to tell process "ControlCenter"
+        repeat with mi in menu bar items of menu bar 1
+          try
+            if value of attribute "AXIdentifier" of mi is (item 1 of argv) then
+              click mi
+              return "ok"
+            end if
+          end try
+        end repeat
+      end tell
+      return ""
+    end run
+    AS
+    )" = ok ]
+    }
 
     case "$1" in
       # Apple メニュー
@@ -416,16 +407,15 @@ let
       emoji)    osascript -e 'tell application "System Events" to key code 49 using {control down, command down}' ;;
       focus-settings)    pane com.apple.Focus-Settings.extension ;;
       shortcuts-app)     open -a Shortcuts ;;
-      open-app)          open -b "$2" ;;
+      open-app)          open -b "$2" ;; # 通知をクリック → そのアプリを開く
       # 通知を「すべて消去」: 今の時刻を記録して、メニューとベルの件数を作り直す（macOS 側の通知は残る）
       notify-clear)
         mkdir -p "$(dirname "$NOTIFY_CLEARED")"
         echo $(( $(date +%s) - 978307200 )) > "$NOTIFY_CLEARED"
         sketchybar --trigger menu_rebuild TARGET=notify
-        sketchybar --trigger notify_update ;; # 通知をクリック → そのアプリを開く
-      fda-settings)      open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" ;;
+        sketchybar --trigger notify_update ;;
+      fda-settings)     open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" ;;
 
-      # 集中モード: ショートカットを実行（引数は一覧での番号）
       # 集中モードのオン / オフを切り替える（引数: 行の番号と名前）。今の状態の逆のショートカットを実行し、その行だけ更新
       focus-toggle)
         id="$(focus_id "$3")"
@@ -501,22 +491,9 @@ let
         cal_event_args
         sketchybar "''${ARGS[@]}" ;;
 
-      # 通知センター: 隠れている標準メニューバーの時計をアクセシビリティ経由でクリックして開く
-      # （sketchybar にアクセシビリティの許可が必要。失敗したら通知設定を開く）
+      # 通知センター: 隠れている標準メニューバーの時計をクリックして開く（失敗したら通知設定を開く）
       nc-open)
-        osascript -e '
-          tell application "System Events" to tell process "ControlCenter"
-            repeat with mi in menu bar items of menu bar 1
-              try
-                if value of attribute "AXIdentifier" of mi is "com.apple.menuextra.clock" then
-                  click mi
-                  return
-                end if
-              end try
-            end repeat
-          end tell
-          error "clock not found"' >/dev/null 2>&1 \
-          || pane com.apple.Notifications-Settings.extension ;;
+        click_menuextra com.apple.menuextra.clock || pane com.apple.Notifications-Settings.extension ;;
 
       # 音量・オーディオデバイス（引数は一覧での番号）
       mute)
@@ -551,32 +528,13 @@ let
     )" || exit 0
           out="$(networksetup -setairportnetwork "$dev" "$ssid" "$pw" 2>&1)"
         fi
-        if [ -n "$out" ]; then
-          osascript - "$out" <<'AS' >/dev/null 2>&1
-    on run argv
-      display notification (item 1 of argv) with title "Wi-Fi に接続できませんでした"
-    end run
-    AS
-        fi
+        [ -n "$out" ] && notify_msg "Wi-Fi に接続できませんでした" "$out"
         refresh 3 ;;
       # ビデオエフェクト（ポートレート・センターフレーム・背景など）: カメラ使用中だけ標準メニューバーに出る
-      # 「オーディオとビデオのコントロール」をアクセシビリティ経由でクリックして開く
+      # 「オーディオとビデオのコントロール」をクリックして開く
       camera-effects)
-        r="$(osascript - <<'AS' 2>/dev/null
-    tell application "System Events" to tell process "ControlCenter"
-      repeat with mi in menu bar items of menu bar 1
-        try
-          if value of attribute "AXIdentifier" of mi is "com.apple.menuextra.audiovideo" then
-            click mi
-            return "ok"
-          end if
-        end try
-      end repeat
-    end tell
-    return ""
-    AS
-    )"
-        [ "$r" = ok ] || notify_msg "ビデオエフェクト" "カメラを使っているときだけ開けます" ;;
+        click_menuextra com.apple.menuextra.audiovideo \
+          || notify_msg "ビデオエフェクト" "カメラを使っているときだけ開けます" ;;
 
       # Tailscale
       ts-up)   ${tailscale} up;   refresh 2 ;;
@@ -652,12 +610,10 @@ let
   # 時間を選ぶ画面（開始・終了のプルダウン + 終日。pkgs/calendar/timepicker.js）
   calTimePicker = "osascript -l JavaScript ${../pkgs/calendar/timepicker.js}";
 
-  # カレンダーを画像で描く（pkgs/calendar/render.py。日曜・祝日は赤、土曜は青、今日は丸、予定は点）
+  # カレンダーを画像で描く（pkgs/calendar/render.py。祝日と予定の件数は Homebrew の icalBuddy で読む）
   calRender = "${pkgs.python3.withPackages (ps: [ ps.pillow ])}/bin/python3 ${../pkgs/calendar/render.py}";
 
-  # 時刻・月カレンダー・直近の予定をメニュー内に表示（外部アプリは開かない）
-  icalBuddy = "/opt/homebrew/bin/icalBuddy"; # Homebrew の ical-buddy（modules/homebrew.nix）
-
+  # 時刻・月カレンダー・選んだ日の予定をメニュー内に表示（外部アプリは開かない）
   clock = plugin "clock" (header + ''
     # 月カレンダー: 月送り・曜日・6 週の行を画像で並べる（幅 224）。
     # 画像は行の背景に敷き、月送りと週の行は透明なスライダーにして押した位置を受け取る
@@ -683,9 +639,7 @@ let
             slider.background.drawing=on slider.background.color=0x00000000 slider.background.height=26
             script="${calWeek}"
           --subscribe "$p.dyn.cal.w$i" mouse.clicked)
-        MENU_ROWS+=("$p.dyn.cal.w$i")
       done
-      MENU_ROWS+=("$p.dyn.cal.nav" "$p.dyn.cal.head")
       [ "$MAX_WIDTH" -lt 232 ] && MAX_WIDTH=232
       ARGS=(); cal_image_args; BATCH+=("''${ARGS[@]}")
     }
@@ -705,7 +659,7 @@ let
         label="$(date '+%H:%M')" label.font="Hack Nerd Font:Bold:22.0" label.color=$FG
         label.padding_left=0 label.padding_right=0 # 大きな時刻は高めの行に
         background.drawing=on background.color=0x00000000 background.height=40)
-      MENU_ROWS+=("$p.dyn.now"); CENTER_ROWS+=("$p.dyn.now")
+      CENTER_ROWS+=("$p.dyn.now")
       calendar
       events
       menu_item $p accounts "󰒓" "カレンダーのアカウント…" internet-accounts # Google / Outlook などを追加すると同期される
@@ -823,10 +777,8 @@ let
         print("\x1f".join([bid, app_name(bid), when.strftime("%m/%d %H:%M"), title, clean(req.get("body"))]))
   '';
 
-  # 通知の履歴・集中モードの状態は macOS が保護していて直接読めない。
-  # 集中モードは「ショートカット」アプリ経由で扱う:
-  #   - 「集中モード: 〜」という名前のショートカットをメニューに並べ、クリックで実行
-  #   - 「集中モード状態」という名前のショートカット（現在の集中モードを取得して出力）があれば現在の状態を表示
+  # 通知の履歴・集中モードの状態は保護領域にあるので、sketchybar のフルディスクアクセスで読む。
+  # 集中モードの切り替えは「ショートカット」アプリの「集中モード: <名前> オン / オフ」を実行する。
   notify = plugin "notify" (header + ''
     notifications() { ${notifList} "$1" "$(cat "$NOTIFY_CLEARED" 2>/dev/null || echo 0)"; }
 
@@ -853,7 +805,7 @@ let
     }
 
     build_menu() {
-      local p=notify i=0 sc cur tmp
+      local p=notify i=0 name
       notification_list
       menu_item $p nc "" "通知センターを開く" nc-open
 
@@ -943,6 +895,7 @@ let
   '';
 
   volume = plugin "volume" (header + ''
+    vget() { osascript -e "$1 of (get volume settings)"; }
     # 出力 / 入力デバイスの一覧（現在のものに印）
     device_list() {
       local p=volume type="$1" cur dev i=0 icon
@@ -1053,7 +1006,7 @@ let
       (
         trap 'rmdir "$lock" 2>/dev/null' EXIT
         tmp="$(mktemp)"
-        wifi_scan > "$tmp" && [ -s "$tmp" ] && mkdir -p "$(dirname "$WIFI_SCAN")" && mv "$tmp" "$WIFI_SCAN"
+        osascript -l JavaScript ${wifiScan} > "$tmp" 2>/dev/null && [ -s "$tmp" ] && mkdir -p "$(dirname "$WIFI_SCAN")" && mv "$tmp" "$WIFI_SCAN"
         rm -f "$tmp"
         sketchybar --trigger menu_rebuild TARGET=wifi
       ) >/dev/null 2>&1 &
@@ -1125,7 +1078,7 @@ let
 
   # ── 再生中の曲（mpd）。ノッチのすぐ左 ─────────────────────────────────────── #
   # mpc idle で再生状態の変化を待ち、変わったら music_update を送る（ループは 1 本だけ）。
-  # 停止中・mpd が動いていないときは項目を隠す
+  # 停止中は「停止中」、mpd が動いていないときは「オフ」と小さく表示する
   music = plugin "music" (header + ''
     pidfile="''${TMPDIR:-/tmp}/sketchybar-music.pid"
     if ! { [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; }; then
@@ -1223,17 +1176,17 @@ let
     AS
     }
 
-
     # 使用中だけ表示（緑のアイコン + 「使用中」）。使っていなければ隠す
     if camera_in_use; then
       sketchybar --set "$NAME" drawing=on icon.color=$GREEN label="使用中" label.color=$GREEN label.drawing=on
     else
-      sketchybar --set "$NAME" drawing=off popup.drawing=off
+      sketchybar --set "$NAME" drawing=off
     fi
   '');
 
   # ── VPN（Tailscale とシステムの VPN 設定）──────────────────────────────── #
   vpn = plugin "vpn" (header + ''
+    ts_json() { ${tailscale} status --json 2>/dev/null; }
     # システムの VPN 一覧（Tailscale は別枠で扱うので除外）: "<ID>\t<状態>\t<名前>"
     vpn_services() {
       scutil --nc list 2>/dev/null | tail -n +2 | grep -v 'io.tailscale' | while IFS= read -r line; do
@@ -1385,7 +1338,7 @@ in
         --subscribe front_app front_app_switched \
         --set front_app icon.drawing=off label.color=0xff9ece6a script="${frontApp}"
 
-      # メニューを開いたまま中身を作り直すためのイベント（カレンダーの月送り）
+      # メニューを開いたまま中身を作り直すためのイベント（Wi-Fi のスキャン後・通知の消去後）
       sketchybar --add event menu_rebuild
       sketchybar --add event notify_update # 通知の件数を更新
 
@@ -1400,7 +1353,7 @@ in
           popup.align=right $POPUP
 
       sketchybar --add item clock right \
-        --subscribe clock menu_rebuild $MENU \
+        --subscribe clock $MENU \
         --set clock icon.drawing=off update_freq=10 script="${clock}" popup.align=right $POPUP \
           popup.height=26 # 行の最低の高さ（既定はバーの高さ 33。カレンダーの週の行を詰める）
 

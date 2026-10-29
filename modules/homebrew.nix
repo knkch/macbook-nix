@@ -59,7 +59,6 @@ in
 
       # Fonts
       "font-hack-nerd-font"
-      "font-hackgen"        # sketchybar のカレンダー（全角 = 英数字 2 文字分の等幅）
 
       # Terminal / Dev
       "claude-code"             # nixpkgs 版は更新が遅いため cask で最新を追従
@@ -78,7 +77,6 @@ in
       # Gaming
       "steam"
       "xiv-on-mac"
-      "rekordbox"
       "prismlauncher"
 
       # Remote / VPN
@@ -88,8 +86,9 @@ in
       "alfred"
       "xld"
 
-      # Media / Blu-ray
+      # Media / Music / Blu-ray
       "vlc"
+      "rekordbox"
       "media-center"            # JRiver Media Center（auto_updates のため rebuild ではメジャー更新されない）
 
       # ── Infrastructure ──────────────────────────────────────────────────── #
@@ -114,7 +113,7 @@ in
       "libaacs"
       "libbluray"
       "openjdk@17"   # VLC の BD-J メニュー用（最新 JDK はクラッシュ）
-      "ical-buddy"   # sketchybar の時計メニューで予定を表示
+      "ical-buddy"   # sketchybar のカレンダー画像（祝日・予定の件数）
     ];
 
     masApps = {
