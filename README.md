@@ -79,7 +79,7 @@ rebuild
 | ツール | 管理 | 概要 |
 |--------|------|------|
 | AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
-| Sketchybar | `services.sketchybar` | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー） |
+| Sketchybar | `services.sketchybar` | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: カメラ（使用中のみ）・VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー） |
 | jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
 | Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
 | macSKK | cask + dotfile | 日本語 IME（SKK-JISYO.L） |

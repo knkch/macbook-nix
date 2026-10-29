@@ -19,6 +19,27 @@ in
         "/run/current-system/sw/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE"
       ];
 
+      # ── レイアウト ──
+      # 通常のウィンドウは必ずタイル表示（重ならないように並べる）
+      default-root-container-layout = "tiles";
+      default-root-container-orientation = "auto";
+      enable-normalization-flatten-containers = true;
+      enable-normalization-opposite-orientation-for-nested-containers = true;
+      accordion-padding = 0; # アコーディオン（alt-,）でもずらして重ねない
+
+      # フローティングは一時的な小さいウィンドウだけ（ダイアログ・シート等は AeroSpace が自動で浮かせる）。
+      # フローティングはタイルの後ろに隠れることがある（AeroSpace は常に手前に出せない）ので、
+      # 普通に使うウィンドウ（システム設定など）はタイルのままにする。
+      on-window-detected = [
+        # ピクチャインピクチャ
+        { "if".window-title-regex-substring = "(Picture.in.Picture|ピクチャ.?イン.?ピクチャ)"; run = [ "layout floating" ]; }
+        # Finder の「情報を見る」・コピー / 移動中の進行状況
+        { "if".app-id = "com.apple.finder"; "if".window-title-regex-substring = "(の情報$|^コピー|^移動|Info$|^Copy)"; run = [ "layout floating" ]; }
+        # 展開の進行状況・カラーピッカー
+        { "if".app-id = "com.apple.archiveutility";    run = [ "layout floating" ]; }
+        { "if".app-id = "com.apple.DigitalColorMeter"; run = [ "layout floating" ]; }
+      ];
+
       gaps = {
         # 隙間はすべて 3（jankyborders の枠線 2 / sketchybar の左右余白 3 もこれに合わせている）
         # top: 標準メニューバーは常に表示（sketchybar で覆う）ので、macOS がその分を空ける。

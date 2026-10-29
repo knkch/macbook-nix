@@ -8,23 +8,110 @@ let
   jq        = "${pkgs.jq}/bin/jq";
   tailscale = "/usr/local/bin/tailscale"; # Tailscale.app（App Store 版）が置く CLI
 
+  # Wi-Fi: 周囲のネットワークをスキャン（CoreWLAN）。同じ名前は電波の強いものだけ、強い順
+  #   出力: <SSID> US <RSSI> US <1 = 鍵なし / 0 = 鍵あり> US <チャンネル>（US = \x1f）
+  wifiScan = pkgs.writeText "sketchybar-wifi-scan.js" ''
+    $.NSBundle.bundleWithPath("/System/Library/Frameworks/CoreWLAN.framework").load;
+    const itf = $.NSClassFromString("CWWiFiClient").sharedWiFiClient.interface;
+    const nets = itf.scanForNetworksWithNameError($(), Ref());
+    const best = {};
+    if (nets && !nets.isNil()) {
+      for (const n of nets.allObjects.js) {
+        if (n.ssid.isNil()) continue;
+        const ssid = n.ssid.js, rssi = n.rssiValue;
+        if (!ssid || (best[ssid] && best[ssid].rssi >= rssi)) continue;
+        best[ssid] = { rssi: rssi, open: n.supportsSecurity(0) ? 1 : 0, ch: n.wlanChannel.channelNumber };
+      }
+    }
+    Object.keys(best).sort((a, b) => best[b].rssi - best[a].rssi)
+      .map(k => [k, best[k].rssi, best[k].open, best[k].ch].join("\x1f")).join("\n");
+  '';
+
+  # Wi-Fi: 今の接続の情報。名前は位置情報の保護で取れないことが多いので、チャンネルと電波の強さも出す
+  #   出力: <SSID（取れなければ空）> US <チャンネル> US <RSSI>
+  wifiSsid = pkgs.writeText "sketchybar-wifi-ssid.js" ''
+    $.NSBundle.bundleWithPath("/System/Library/Frameworks/CoreWLAN.framework").load;
+    const i = $.NSClassFromString("CWWiFiClient").sharedWiFiClient.interface;
+    [i.ssid.isNil() ? "" : i.ssid.js, i.wlanChannel.isNil() ? "" : i.wlanChannel.channelNumber, i.rssiValue].join("\x1f");
+  '';
+
+  # カメラ: 接続されているカメラと、ほかのアプリが使用中か（AVFoundation）
+  #   出力: <カメラ名> US <1 = 使用中 / 0>
+  cameraList = pkgs.writeText "sketchybar-cameras.js" ''
+    $.NSBundle.bundleWithPath("/System/Library/Frameworks/AVFoundation.framework").load;
+    $.NSClassFromString("AVCaptureDevice").devicesWithMediaType("vide").js
+      .map(d => [d.localizedName.js, d.isInUseByAnotherApplication ? 1 : 0].join("\x1f")).join("\n");
+  '';
+
+  # メニューの行にマウスが乗ったら背景を付ける
+  hover = plugin "hover" ''
+    case "$SENDER" in
+      mouse.entered) sketchybar --set "$NAME" background.drawing=on ;;
+      mouse.exited)  sketchybar --set "$NAME" background.drawing=off ;;
+    esac
+  '';
+
   # ── 共通関数（各プラグインが読み込む）──────────────────────────────────── #
   # メニュー（ポップアップ）は開くたびに中身を作り直し、最新の状態を表示する。
   # 項目名は「<親>.dyn.<名前>」。クリック時の操作は $ACTION（action スクリプト）に渡す。
   lib = pkgs.writeText "sketchybar-lib.sh" ''
     FG=0xffc0caf5; SUB=0xff9aa5ce; DIM=0xff565f89; ACCENT=0xff7aa2f7; GREEN=0xff9ece6a; RED=0xfff7768e
-    POPUPS="apple clock notify input battery volume bluetooth wifi vpn"
+    POPUPS="apple clock notify input battery volume bluetooth wifi vpn camera"
     MONO="Hack Nerd Font Mono:Regular:13.0"
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
     NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"
+    WIFI_SCAN="$HOME/Library/Caches/sketchybar-wifi-scan" # 直近のスキャン結果
     CAL_STATE="''${TMPDIR:-/tmp}/sketchybar-cal-offset" # カレンダーで表示中の月（今月からのずれ）
 
     wifi_dev() { networksetup -listallhardwareports | awk '/Hardware Port: Wi-Fi/{getline; print $2}'; }
     preferred_networks() { networksetup -listpreferredwirelessnetworks "$1" | tail -n +2 | sed 's/^[[:space:]]*//'; }
+    wifi_scan() { osascript -l JavaScript ${wifiScan} 2>/dev/null; }
+    # 今つながっているネットワーク名。取れなければ、直近のスキャン結果から
+    # 同じチャンネルで電波の強さが一番近いものを推定する
+    wifi_ssid() {
+      local ssid ch rssi
+      IFS=$'\x1f' read -r ssid ch rssi < <(osascript -l JavaScript ${wifiSsid} 2>/dev/null)
+      if [ -n "$ssid" ]; then echo "$ssid"; return; fi
+      [ -n "$ch" ] && [ -f "$WIFI_SCAN" ] || return 0
+      awk -F"$(printf '\037')" -v ch="$ch" -v rssi="$rssi" '
+        $4 == ch { d = $2 - rssi; if (d < 0) d = -d; if (best == "" || d < bd) { best = $1; bd = d } }
+        END { if (best != "") print best }' "$WIFI_SCAN"
+    }
+    cameras() { osascript -l JavaScript ${cameraList} 2>/dev/null; }
     vget() { osascript -e "$1 of (get volume settings)"; }
     ts_json() { ${tailscale} status --json 2>/dev/null; }
     # 集中モードの切り替え用ショートカット（名前が「集中モード: 」で始まるもの）
     focus_shortcuts() { shortcuts list 2>/dev/null | grep '^集中モード: '; }
+
+    # 作ったメニュー項目（幅を揃える対象を探すため）と、クリックできる項目（ハイライトする）
+    MENU_ROWS=(); CLICKABLE_ROWS=()
+    HOVER_STYLE=(background.color=0xff2f3549 background.corner_radius=5 background.height=24
+                 background.drawing=off script="${hover}")
+
+    # クリックできる行: ハイライトを付けて、マウスの出入りを受け取る
+    make_clickable() {
+      CLICKABLE_ROWS+=("$1")
+      sketchybar --set "$1" "''${HOVER_STYLE[@]}" --subscribe "$1" mouse.entered mouse.exited
+    }
+
+    # 行の幅の見積もり（実測から: 英数字 1 文字 ≒ 7.5、全角 ≒ 12.5）。表示する前に幅を決めて、
+    # 表示後に幅が変わってメニューがずれないようにする
+    MAX_WIDTH=0
+    estimate() { # estimate <テキスト> <土台の幅> <英数字の幅> <全角の幅>
+      local LC_ALL=en_US.UTF-8 text="$1" ascii n w
+      ascii="''${text//[^ -~]/}"
+      n=''${#text}
+      w=$(( $2 + (''${#ascii} * $3 + (n - ''${#ascii}) * $4) / 10 ))
+      [ "$w" -gt "$MAX_WIDTH" ] && MAX_WIDTH=$w
+      return 0
+    }
+    # クリックできる行の幅を、一番広い行の見積もりに揃える（build_menu の後・表示の前に呼ぶ）
+    apply_widths() {
+      local row args=()
+      for row in "''${CLICKABLE_ROWS[@]}"; do args+=(--set "$row" width="$MAX_WIDTH"); done
+      [ ''${#args[@]} -gt 0 ] && sketchybar "''${args[@]}"
+      return 0
+    }
 
     close_all() {
       local args=() p
@@ -36,9 +123,14 @@ let
     menu_item() {
       local parent="$1" name="$2" icon="$3" label="$4"; shift 4
       local style=(icon="$icon" label="$label" icon.padding_left=10 icon.padding_right=8 label.padding_right=16)
+      [ -z "$icon" ] && style+=(icon.drawing=off label.padding_left=12) # アイコンなしの行
       if [ $# -gt 0 ]; then style+=(icon.color=$FG label.color=$FG click_script="$ACTION $*")
       else style+=(icon.color=$SUB label.color=$SUB); fi
       sketchybar --add item "$parent.dyn.$name" popup."$parent" --set "$parent.dyn.$name" "''${style[@]}"
+      MENU_ROWS+=("$parent.dyn.$name")
+      estimate "$label" 62 75 125
+      [ $# -gt 0 ] && make_clickable "$parent.dyn.$name"
+      return 0
     }
 
     # menu_text <親> <名前> <テキスト> [色] [操作 引数...]（等幅フォント・アイコンなし。カレンダー表示用）
@@ -48,6 +140,10 @@ let
                    label.padding_left=12 label.padding_right=16)
       [ $# -gt 0 ] && style+=(click_script="$ACTION $*")
       sketchybar --add item "$parent.dyn.$name" popup."$parent" --set "$parent.dyn.$name" "''${style[@]}"
+      MENU_ROWS+=("$parent.dyn.$name")
+      estimate "$text" 40 80 130
+      [ $# -gt 0 ] && make_clickable "$parent.dyn.$name"
+      return 0
     }
 
     # menu_header <親> <名前> <見出し>
@@ -55,6 +151,8 @@ let
       sketchybar --add item "$1.dyn.$2" popup."$1" --set "$1.dyn.$2" icon.drawing=off \
         label="$3" label.font="Hack Nerd Font:Bold:11.0" label.color=$ACCENT \
         label.padding_left=10 padding_left=0
+      MENU_ROWS+=("$1.dyn.$2")
+      estimate "$3" 24 65 110
     }
 
     # menu_slider <親> <名前> <アイコン> <割合> <スクリプト>
@@ -65,6 +163,9 @@ let
           slider.background.height=6 slider.background.corner_radius=3 slider.background.color=0xff414868 \
           slider.knob="●" slider.knob.color=$FG padding_right=16 script="$5" \
         --subscribe "$1.dyn.$2" mouse.clicked
+      MENU_ROWS+=("$1.dyn.$2")
+      [ "$MAX_WIDTH" -lt 240 ] && MAX_WIDTH=240
+      return 0
     }
 
     # クリックでメニューを開閉（開くときに各プラグインの build_menu で中身を作る）
@@ -77,6 +178,7 @@ let
             close_all
             sketchybar --remove "/$NAME\.dyn\..*/" >/dev/null 2>&1
             build_menu
+            apply_widths
             sketchybar --set "$NAME" popup.drawing=on
           fi
           exit 0 ;;
@@ -88,6 +190,7 @@ let
           if [ "$TARGET" = "$NAME" ]; then
             sketchybar --remove "/$NAME\.dyn\..*/" >/dev/null 2>&1
             build_menu
+            apply_widths
           fi
           exit 0 ;;
       esac
@@ -183,6 +286,32 @@ let
       wifi-power)
         networksetup -setairportpower "$(wifi_dev)" "$2"
         refresh 3 ;;
+      # 検出したネットワークに接続（引数はスキャン結果での番号）
+      wifi-scan-join)
+        dev="$(wifi_dev)"
+        IFS=$'\x1f' read -r ssid rssi open < <(sed -n "$2p" "$WIFI_SCAN")
+        [ -z "$ssid" ] && exit 0
+        if [ "$open" = 1 ] || preferred_networks "$dev" | grep -qxF "$ssid"; then
+          out="$(networksetup -setairportnetwork "$dev" "$ssid" 2>&1)"
+        else
+          # パスワードを尋ねる（キャンセルなら何もしない）
+          pw="$(osascript - "$ssid" <<'AS' 2>/dev/null
+    on run argv
+      text returned of (display dialog ("「" & item 1 of argv & "」のパスワード") default answer "" with hidden answer with title "Wi-Fi に接続")
+    end run
+    AS
+    )" || exit 0
+          out="$(networksetup -setairportnetwork "$dev" "$ssid" "$pw" 2>&1)"
+        fi
+        if [ -n "$out" ]; then
+          osascript - "$out" <<'AS' >/dev/null 2>&1
+    on run argv
+      display notification (item 1 of argv) with title "Wi-Fi に接続できませんでした"
+    end run
+    AS
+        fi
+        refresh 3 ;;
+      camera-privacy) pane "com.apple.preference.security?Privacy_Camera" ;;
       wifi-join)
         dev="$(wifi_dev)"
         ssid="$(preferred_networks "$dev" | sed -n "$2p")"
@@ -420,7 +549,7 @@ let
       menu_header $p h.list "通知（最新 15 件）"
       while IFS=$'\x1f' read -r bid app when title body; do
         if [ "$bid" = ERROR ]; then
-          menu_item $p n.err "󰌾" "一覧を表示するには sketchybar にフルディスクアクセスを許可してください"
+          menu_item $p n.err "" "一覧を表示するには sketchybar にフルディスクアクセスを許可してください"
           menu_item $p n.fda "󰒓"  "フルディスクアクセスの設定…" fda-settings
           return
         fi
@@ -428,32 +557,32 @@ let
         text="$app"
         [ -n "$title" ] && text="$text: $title"
         [ -n "$body" ] && text="$text — $body"
-        menu_item $p "n.$i" "󰂚" "$when  $text" open-app "$bid"
+        menu_item $p "n.$i" "" "$when  $text" open-app "$bid"
         sketchybar --set "$p.dyn.n.$i" label.max_chars=64
       done < <(notifications 15)
-      if [ "$i" -eq 0 ]; then menu_item $p n.none "󰂚" "通知はありません"
-      else menu_item $p n.clear "󰆴" "すべて消去" notify-clear; fi
+      if [ "$i" -eq 0 ]; then menu_item $p n.none "" "通知はありません"
+      else menu_item $p n.clear "" "すべて消去" notify-clear; fi
     }
 
     build_menu() {
       local p=notify i=0 sc cur tmp
       notification_list
-      menu_item $p nc "󰂚" "通知センターを開く" nc-open
+      menu_item $p nc "" "通知センターを開く" nc-open
 
       menu_header $p h.focus "集中モード"
       if shortcuts list 2>/dev/null | grep -qx '集中モード状態'; then
         tmp="$(mktemp)"
         shortcuts run '集中モード状態' --output-path "$tmp" >/dev/null 2>&1
         cur="$(head -1 "$tmp" 2>/dev/null)"; rm -f "$tmp"
-        menu_item $p focus.state "󰖔" "現在: ''${cur:-オフ}"
+        menu_item $p focus.state "" "現在: ''${cur:-オフ}"
       fi
       while IFS= read -r sc; do
         i=$((i + 1))
-        menu_item $p "focus.$i" "󰖔" "''${sc#集中モード: }" focus-run "$i"
+        menu_item $p "focus.$i" "" "''${sc#集中モード: }" focus-run "$i"
       done < <(focus_shortcuts)
       if [ "$i" -eq 0 ]; then
-        menu_item $p focus.none "󰖔" "「集中モード: 〜」という名前のショートカットを作ると、ここから切り替えられます"
-        menu_item $p focus.app  "󰏌" "ショートカットを開く" shortcuts-app
+        menu_item $p focus.none "" "「集中モード: 〜」という名前のショートカットを作ると、ここから切り替えられます"
+        menu_item $p focus.app  "" "ショートカットを開く" shortcuts-app
       fi
       menu_item $p focus  "󰒓" "集中モード設定…" focus-settings
       menu_item $p notify "󰒓" "通知設定…"       notify-settings
@@ -602,11 +731,30 @@ let
         [ -n "$ip" ] && { echo "$d $ip"; return; }
       done
     }
-    # SSID は macOS の位置情報保護で <redacted> になることがある
-    current_ssid() {
-      local s
-      s="$(ipconfig getsummary "$1" 2>/dev/null | awk -F ' SSID : ' '/ SSID : /{print $2; exit}')"
-      [ "$s" = "<redacted>" ] || echo "$s"
+    # 電波の強さ（RSSI）と鍵の有無 → アイコン
+    signal_icon() {
+      local rssi="$1" open="$2" level
+      if   [ "$rssi" -ge -55 ]; then level=4
+      elif [ "$rssi" -ge -67 ]; then level=3
+      elif [ "$rssi" -ge -78 ]; then level=2
+      else level=1; fi
+      case "$level$open" in
+        41) echo "󰤨" ;; 40) echo "󰤪" ;;
+        31) echo "󰤥" ;; 30) echo "󰤧" ;;
+        21) echo "󰤢" ;; 20) echo "󰤤" ;;
+        11) echo "󰤟" ;; *)  echo "󰤡" ;;
+      esac
+    }
+
+    # 周囲のネットワークを裏でスキャンし、終わったらメニューを作り直す
+    start_scan() {
+      (
+        tmp="$(mktemp)"
+        wifi_scan > "$tmp" && [ -s "$tmp" ] && mkdir -p "$(dirname "$WIFI_SCAN")" && mv "$tmp" "$WIFI_SCAN"
+        rm -f "$tmp"
+        sketchybar --trigger menu_rebuild TARGET=wifi
+      ) >/dev/null 2>&1 &
+      disown
     }
 
     build_menu() {
@@ -615,15 +763,28 @@ let
       if [ "$(networksetup -getairportpower "$dev" | awk '{print $NF}')" = On ]; then
         menu_item $p power "󰐥" "Wi-Fi: オン（クリックでオフ）" wifi-power off
         ip="$(ipconfig getifaddr "$dev" 2>/dev/null)"
-        ssid="$(current_ssid "$dev")"
-        if [ -n "$ip" ]; then menu_item $p status "󰖩" "''${ssid:-接続中}"
+        ssid="$(wifi_ssid)"
+        if [ -n "$ip" ]; then menu_item $p status "󰖩" "接続中: ''${ssid:-（名前を取得できません）}"
         else menu_item $p status "󰖪" "未接続"; fi
 
-        menu_header $p h.known "登録済みネットワーク（クリックで接続）"
-        while IFS= read -r net; do
+        # 検出したネットワーク（開いた時は前回の結果を出し、裏でスキャンして更新）
+        if [ "$SENDER" = "mouse.clicked" ]; then
+          start_scan
+          menu_header $p h.scan "ネットワーク（検索中…）"
+        else
+          menu_header $p h.scan "ネットワーク（クリックで接続）"
+        fi
+        while IFS=$'\x1f' read -r net rssi open ch; do
+          [ -z "$net" ] && continue
           i=$((i + 1))
-          menu_item $p "known.$i" "󰖩" "$net" wifi-join "$i"
-        done < <(preferred_networks "$dev" | head -12)
+          [ "$i" -gt 15 ] && break
+          if [ "$net" = "$ssid" ]; then
+            menu_item $p "net.$i" "󰄬" "$net"
+          else
+            menu_item $p "net.$i" "$(signal_icon "$rssi" "$open")" "$net" wifi-scan-join "$i"
+          fi
+        done 2>/dev/null < "$WIFI_SCAN"
+        [ "$i" -eq 0 ] && menu_item $p net.none "󰖩" "検索中です…"
       else
         menu_item $p power "󰐥" "Wi-Fi: オフ（クリックでオン）" wifi-power on
       fi
@@ -644,20 +805,41 @@ let
     }
     handle_popup
 
+    # バーはアイコンだけ（名前を出すと幅が変わって右側の項目がずれる）
     dev="$(wifi_dev)"
     power="$(networksetup -getairportpower "$dev" | awk '{print $NF}')"
-    ssid="$(current_ssid "$dev")"
     if [ -n "$(ethernet "$dev")" ]; then
-      icon="󰈀"; color=$FG; ssid=""
+      icon="󰈀"; color=$FG
     elif [ -n "$(ipconfig getifaddr "$dev" 2>/dev/null)" ]; then
       icon="󰖩"; color=$FG
     elif [ "$power" = On ]; then
-      icon="󰖪"; color=$RED; ssid=""
+      icon="󰖪"; color=$RED
     else
-      icon="󰖪"; color=$DIM; ssid=""
+      icon="󰖪"; color=$DIM
     fi
-    if [ -n "$ssid" ]; then show_label=on; else show_label=off; fi
-    sketchybar --set "$NAME" icon="$icon" icon.color="$color" label="$ssid" label.drawing="$show_label"
+    sketchybar --set "$NAME" icon="$icon" icon.color="$color" label.drawing=off
+  '');
+
+  # ── カメラ（使用中だけバーに表示）──────────────────────────────────────── #
+  camera = plugin "camera" (header + ''
+    build_menu() {
+      local p=camera name used i=0
+      menu_header $p h.cam "カメラ"
+      while IFS=$'\x1f' read -r name used; do
+        [ -z "$name" ] && continue
+        i=$((i + 1))
+        if [ "$used" = 1 ]; then menu_item $p "cam.$i" "󰕧" "$name（使用中）"
+        else menu_item $p "cam.$i" "󰕨" "$name"; fi
+      done < <(cameras)
+      menu_item $p privacy "󰌾" "カメラを使えるアプリ…" camera-privacy
+    }
+    handle_popup
+
+    if cameras | cut -d$'\x1f' -f2 | grep -qx 1; then
+      sketchybar --set "$NAME" drawing=on
+    else
+      sketchybar --set "$NAME" drawing=off popup.drawing=off
+    fi
   '');
 
   # ── VPN（Tailscale とシステムの VPN 設定）──────────────────────────────── #
@@ -755,7 +937,8 @@ in
     config = ''
       # topmost=on: マウスを上端に寄せて出てくる macOS のメニューバーをバーで覆い隠す
       # height=33: 標準メニューバーと同じ高さ（低いと下端の 1px にクリックが抜ける）
-      sketchybar --bar position=top height=33 blur_radius=30 color=0xcc1a1b26 \
+      # color は不透明（常に表示している標準メニューバーが透けないように）
+      sketchybar --bar position=top height=33 color=0xff1a1b26 \
         padding_left=3 padding_right=3 topmost=on
 
       sketchybar --default \
@@ -767,9 +950,11 @@ in
         label.padding_left=4 label.padding_right=4
 
       # メニュー（ポップアップ）の見た目
+      # y_offset=0: バーとメニューの間にすき間があると、マウスがそこを通るときに
+      #   「バーからもメニューからも出た」扱いになってメニューが閉じてしまう
       POPUP="popup.background.color=0xf01a1b26 popup.background.corner_radius=8 \
         popup.background.border_width=1 popup.background.border_color=0xff414868 \
-        popup.blur_radius=30 popup.y_offset=3"
+        popup.blur_radius=30 popup.y_offset=0"
       MENU="mouse.clicked mouse.exited.global"
 
       # ── 左: Apple メニュー ──
@@ -835,8 +1020,13 @@ in
           popup.align=right $POPUP
 
       sketchybar --add item wifi right \
-        --subscribe wifi wifi_change system_woke $MENU \
+        --subscribe wifi wifi_change system_woke menu_rebuild $MENU \
         --set wifi update_freq=30 script="${wifi}" popup.align=right $POPUP
+
+      sketchybar --add item camera right \
+        --subscribe camera system_woke $MENU \
+        --set camera icon="󰕧" icon.color=0xff9ece6a label.drawing=off drawing=off \
+          update_freq=3 script="${camera}" popup.align=right $POPUP
 
       sketchybar --add item vpn right \
         --subscribe vpn system_woke $MENU \
