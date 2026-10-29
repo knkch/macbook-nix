@@ -18,6 +18,33 @@ rebuild
 
 > flake は git 管理下のファイルのみ参照する。新規ファイルは `git add` してから適用。
 
+**方針**: このリポジトリと `rebuild` だけで、何回実行しても同じ状態になるようにしている（冪等）。
+macOS の仕様で自動化できない設定は「[手作業が必要な設定](#手作業が必要な設定)」にまとめてある。
+
+## 新しい Mac にセットアップする
+
+```bash
+# 1. コマンドラインツール
+xcode-select --install
+
+# 2. Nix（公式インストーラ・マルチユーザー）
+curl -L https://nixos.org/nix/install | sh -s -- --daemon
+
+# 3. Homebrew（cask / App Store アプリの管理に使う）
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 4. このリポジトリを置く（リモートがない場合は、元の Mac からフォルダごとコピー）
+git clone <リポジトリの URL> ~/.config/nix-darwin
+
+# 5. 初回の適用（まだ darwin-rebuild がないので nix run で呼ぶ）
+sudo nix --extra-experimental-features 'nix-command flakes' \
+  run nix-darwin/nix-darwin-25.05#darwin-rebuild -- switch --flake ~/.config/nix-darwin
+```
+
+- ホスト名が `KokinoMacBook-Pro`、ユーザー名が `konkichi` でない場合は `flake.nix` の `host` / `user` を直す。
+- 2 回目以降は `rebuild` だけ。
+- 最後に「[手作業が必要な設定](#手作業が必要な設定)」を上から順に行い、一度ログアウトする。
+
 ## ファイル構成
 
 ```
@@ -32,6 +59,7 @@ rebuild
 ├── pkgs/
 │   ├── menubar-click-guard/  # 画面上端のクリックを sketchybar に届ける常駐プログラム（C）
 │   ├── calendar/          # 時計メニューのカレンダー画像（render.py）・予定の追加（event.js）
+│   ├── focus-shortcuts/   # 集中モードの切り替え用ショートカットを用意するコマンド
 │   └── runcat/            # CPU で走る猫のドット絵
 └── home/
     ├── default.nix        # ユーザー情報・dotfiles・imports
@@ -57,6 +85,7 @@ rebuild
 | VS Code 本体・拡張 | cask + Brewfile `vscode` 行 (modules/homebrew.nix) |
 | 常駐サービス | `services.sketchybar` / `services.jankyborders` / menubar-click-guard (modules/desktop.nix)、mpd (home/music.nix) |
 | VS Code 設定 (`settings.json`) | Nix 管理外・VS Code が直接書き込み |
+| 集中モードのショートカット | `focusModes` (modules/desktop.nix) から生成し、`focus-shortcuts` で取り込む |
 
 > Brewfile にないアプリは rebuild 時に削除される（`brew bundle cleanup`）。
 
@@ -74,6 +103,9 @@ rebuild
 | セキュリティツールを外す | `home/default.nix` に `my.security.enable = false;` |
 | 新しい .nix ファイルを作った | `git add` してから `rebuild`（flake は git 管理下のみ参照） |
 | 設定を前の状態に戻す | `git log` で確認 → `git checkout <コミット>` → `rebuild` |
+| Nix のパッケージを更新 | `nix flake update` → `rebuild`（版は `flake.lock` で固定されている） |
+| 集中モードを増やす | 下の「[集中モード](#集中モードsketchybar-の通知メニュー)」 |
+| 集中モードのショートカットが消えた | `focus-shortcuts` →「ショートカットを追加」を押す |
 
 > ⚠️ **Homebrew は Brewfile が唯一の正。** `brew install` で手動追加したアプリは、
 > `modules/homebrew.nix` に書かないと次の `rebuild` でアンインストールされる。
@@ -97,6 +129,22 @@ rebuild
 - Dock は自動非表示、操作スペースの自動並べ替えはオフ、Mission Control はアプリごとにグループ化。
 - ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準のウィンドウタイル（画面端ドラッグ / Option+ドラッグ）はオフ（AeroSpace と競合するため）。
 - 初回のみ手動: AeroSpace にアクセシビリティ許可を与え、標準の Space を各ディスプレイ 1 つに減らす。
+
+#### 集中モード（sketchybar の通知メニュー）
+
+通知（ベル）のメニューで、集中モードを 1 行ずつオン / オフできる（オンは ● と緑）。
+切り替えはショートカットアプリの「集中モード: <名前> オン / オフ」を実行して行う。
+
+| やりたいこと | 方法 |
+|--------------|------|
+| ショートカットがそろっているか確認 | `focus-shortcuts --check` |
+| 足りないショートカットを取り込む | `focus-shortcuts`（または通知メニューの「ショートカットを追加…」）→ 出てきた画面で「ショートカットを追加」 |
+| 集中モードを増やす | ① システム設定 > 集中モード で追加 → ② `modules/desktop.nix` の `focusModes` に 1 行足す（名前・識別子・表示名）→ ③ `rebuild` → ④ `focus-shortcuts` |
+| 集中モードをやめる | `focusModes` から消して `rebuild` → ショートカットアプリでその 2 つを削除 |
+
+- いま登録しているのは おやすみ・睡眠・仕事。ショートカットはフォルダ「SketchyBar」にまとめている。
+- 標準モードの識別子は CLAUDE.md の「集中モード」に一覧がある。自分で作ったモードの識別子の調べ方も同じ場所。
+- `rebuild` のたびにショートカットがそろっているか確認し、足りなければメッセージを出す（取り込み画面は勝手に開かない）。
 
 #### AeroSpace キー
 
@@ -183,7 +231,34 @@ Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox
 
 > Intel 専用（Rosetta が必要）: Maltego / e-Gov電子申請アプリケーション / Brother ドライバの常駐プロセス
 
+## 手作業が必要な設定
+
+macOS が外からの設定を許していないため、`rebuild` では入れられないもの。新しい Mac や作り直したときに行う。
+詳しい理由とパスは [CLAUDE.md](CLAUDE.md) の「冪等性と手作業の設定」。
+
+- [ ] sketchybar に **フルディスクアクセス**（通知一覧・集中モードの状態）
+- [ ] sketchybar に **アクセシビリティ**（通知センター・ビデオエフェクト・入力ソース・絵文字）
+- [ ] sketchybar に **Bluetooth**・**カレンダー**（初回に出る確認で許可）
+- [ ] menubar-click-guard と AeroSpace に **アクセシビリティ**
+- [ ] 標準の Space を各ディスプレイ 1 つに減らし、ログアウト
+- [ ] システム設定 > 集中モード に おやすみ・睡眠・仕事 を追加 → `focus-shortcuts` で取り込み → フォルダ「SketchyBar」へ移す
+- [ ] Blu-ray を見るなら `keydb.cfg` を `~/Library/Preferences/aacs/` に置く
+- [ ] Nix / Homebrew 管理外のアプリを入れる（上の一覧）
+
+> sketchybar・menubar-click-guard は更新で場所（nix store のパス）が変わると、許可を付け直す必要がある。
+> 古い許可は「プライバシーとセキュリティ」の一覧に残るので、ときどき削除する。
+
+> Homebrew は `rebuild` のたびに最新版へ更新する設定（Claude Code などを常に最新にするため）。
+> そのため Homebrew で入るアプリの版だけは、実行した日によって変わる。
+
 ## 変更履歴
+
+### 2026-10-29 整理・冪等性
+
+- **整理**: sketchybar の使われていない処理（カメラ一覧、等幅のメニュー行、未使用の変数など）を削除、同じ AppleScript をまとめた。`font-hackgen`（未使用）と `xxd`（macOS 標準と重複）を削除
+- **集中モード**: モードの一覧を `focusModes`（modules/desktop.nix）に一本化。ショートカットを用意する `focus-shortcuts` を追加し、`rebuild` で不足を確認
+- **通知メニュー**: 「通知設定…」を通知の項目の下へ移し、「ショートカットを追加…」を追加
+- **ドキュメント**: 新しい Mac でのセットアップ手順、手作業が必要な設定の一覧を追加
 
 ### 2026-10-29 sketchybar の作り込み・音楽
 

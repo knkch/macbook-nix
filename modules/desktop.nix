@@ -1,7 +1,23 @@
-{ pkgs, ... }:
+{ pkgs, user, ... }:
 let
   # sketchybar のプラグイン（nix store に置くので相対パス問題が起きない）
   plugin = name: text: pkgs.writeShellScript "sketchybar-${name}" text;
+
+  # ── 集中モード（通知メニューで切り替える）──────────────────────────────── #
+  # ここに書いたモードごとに、切り替え用ショートカット「集中モード: <name> オン / オフ」を
+  # focus-shortcuts コマンドで用意し、メニューではオン / オフの状態を表示する。
+  #   name    = メニューとショートカットの名前
+  #   id      = macOS の集中モードの識別子（今の状態を調べるのと、ショートカットの中身に使う）
+  #   display = ショートカットアプリの「集中モードを設定」に表示される名前
+  # モードはシステム設定 > 集中モード に追加しておく必要がある（ないモードは切り替えられない）。
+  # 標準モードの識別子: 仕事 com.apple.focus.work / パーソナル com.apple.focus.personal-time /
+  #   割り込みを減らす com.apple.focus.reduce-interruptions（詳しくは CLAUDE.md）
+  focusModes = [
+    { name = "おやすみ"; id = "com.apple.donotdisturb.mode.default"; display = "おやすみモード"; }
+    { name = "睡眠";     id = "com.apple.sleep.sleep-mode";          display = "睡眠"; }
+    { name = "仕事";     id = "com.apple.focus.work";                display = "仕事"; }
+  ];
+  focusShortcuts = pkgs.callPackage ../pkgs/focus-shortcuts { modes = focusModes; };
 
   blueutil  = "${pkgs.blueutil}/bin/blueutil";
   sas       = "${pkgs.switchaudio-osx}/bin/SwitchAudioSource";
@@ -83,12 +99,10 @@ let
     }
     # 「集中モード: <名前> オン / オフ」のショートカットがある集中モードの名前（重複なし）
     focus_modes() { focus_shortcuts | nfc | sed -E 's/^集中モード: //; s/ (オン|オフ)$//' | awk '!seen[$0]++'; }
-    # 集中モードの名前 → macOS の識別子（標準のモードだけ。それ以外は空）
+    # 集中モードの名前 → macOS の識別子（focusModes に書いたモードだけ。それ以外は空）
     focus_id() {
       case "$1" in
-        おやすみ*) echo com.apple.donotdisturb.mode.default ;; 睡眠) echo com.apple.sleep.sleep-mode ;;
-        仕事) echo com.apple.focus.work ;; パーソナル) echo com.apple.focus.personal-time ;;
-        割り込み*) echo com.apple.focus.reduce-interruptions ;;
+    ${pkgs.lib.concatMapStrings (m: "    ${pkgs.lib.escapeShellArg m.name}) echo ${m.id} ;;\n") focusModes}
       esac
     }
     # 今オンになっている集中モードの識別子（保護領域なので sketchybar のフルディスクアクセスで読む）
@@ -406,7 +420,11 @@ let
       ime-next) osascript -e 'tell application "System Events" to key code 49 using control down' ;;
       emoji)    osascript -e 'tell application "System Events" to key code 49 using {control down, command down}' ;;
       focus-settings)    pane com.apple.Focus-Settings.extension ;;
-      shortcuts-app)     open -a Shortcuts ;;
+      # 「ショートカットを追加…」: focusModes のショートカットが足りなければ取り込み画面を開き、
+      # そろっていればショートカットアプリを開く（自分で作るとき用）
+      shortcuts-app)
+        ${focusShortcuts}/bin/focus-shortcuts --check >/dev/null 2>&1
+        if [ $? -eq 1 ]; then ${focusShortcuts}/bin/focus-shortcuts >/dev/null 2>&1; else open -a Shortcuts; fi ;;
       open-app)          open -b "$2" ;; # 通知をクリック → そのアプリを開く
       # 通知を「すべて消去」: 今の時刻を記録して、メニューとベルの件数を作り直す（macOS 側の通知は残る）
       notify-clear)
@@ -1251,6 +1269,20 @@ let
   '');
 in
 {
+  # ── 集中モードの切り替え用ショートカット ──────────────────────────────── #
+  # `focus-shortcuts` で足りないものだけ取り込む（何回実行しても同じ結果）。
+  # rebuild のたびに確認だけ行い、足りなければ知らせる（取り込み画面は勝手に開かない）
+  environment.systemPackages = [ focusShortcuts ];
+  home-manager.users.${user} = { lib, ... }: {
+    home.activation.focusShortcuts = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      # 失敗しても rebuild を止めない（activation は set -e で動く）。一覧を読めないとき（2）は黙る
+      rc=0; ${focusShortcuts}/bin/focus-shortcuts --check >/dev/null 2>&1 || rc=$?
+      if [ "$rc" -eq 1 ]; then
+        echo "集中モードの切り替え用ショートカットが足りません。focus-shortcuts を実行してください" >&2
+      fi
+    '';
+  };
+
   # ── 上端クリックのガード ──────────────────────────────────────────────── #
   # macOS は画面の一番上の行と上の角のクリックを、sketchybar で覆っていても標準メニューバーに渡す。
   # クリック位置を少し内側に移して sketchybar に届ける（pkgs/menubar-click-guard）。

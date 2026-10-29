@@ -38,6 +38,7 @@ rebuild   # zsh エイリアス
 | `pkgs/calendar/` | sketchybar の時計メニューのカレンダー画像を描く `render.py`（メニューを開くたびに約 0.25 秒）、予定の一覧・追加・編集・削除をする `event.js`（JXA + EventKit）、時間を選ぶ画面 `timepicker.js`（JXA + NSAlert / NSPopUpButton） |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
+| `pkgs/focus-shortcuts/` | 集中モードの切り替え用ショートカットを用意するコマンド `focus-shortcuts`。中身（署名前）は `gen.py` でビルド時に作り、署名と取り込みは実行時。モードの一覧は modules/desktop.nix の `focusModes` |
 
 ### 配置の原則
 
@@ -133,7 +134,7 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 | 再生中の曲 | ノッチのすぐ左（`position q`）。再生中は曲名、一時停止中は薄く、停止中は「♪ 停止中」、曲名を隠すとアイコンだけ、mpd に接続できなければ「♪ オフ」 | アルバム・曲名・アーティスト、前の曲 / 再生・一時停止 / 次の曲（`mpc`）、Rigelian を開く（cmux は外のプロセスからの操作を受け付けないため rmpc は開かない。どちらも同じ mpd を操作）。停止（表示も消える）、曲名を隠す（その曲のあいだだけアイコンのみ。`$TMPDIR/sketchybar-music-hidden` に曲を記録）。`mpc idle` のループで変化を待つ |
 | CPU で走る猫 | ノッチのすぐ右（`position e`） | RunCat 風（絵はオリジナル、`pkgs/runcat`）。CPU 使用率（`ps` の合計 / コア数）を約 1 秒ごとに測り、コマ間隔 0.2〜0.03 秒で走る速さを変える。右に使用率 |
 | カメラ | 使用中だけ表示（緑 + 「使用中」） | メニューなし。押すと使用中のカメラのビデオエフェクト（標準メニューバーの `com.apple.menuextra.audiovideo` をアクセシビリティでクリック）。使用状態はコントロールセンターの表示（`com.apple.menuextra.controlcenter` の説明に「カメラ」）で判定: AVFoundation の `isInUseByAnotherApplication` は sketchybar にカメラ許可がないと常に未使用を返す |
-| 通知（右端） | ベル + 赤いバッジ（消去後に届いた件数、10 件以上は 9+） | 最新 15 件の通知一覧（クリックでそのアプリを開く）・すべて消去、通知センターを開く（隠れた標準メニューバーの時計をアクセシビリティ経由でクリック）、通知設定、集中モード（下記）、ショートカットを追加（ショートカットアプリを開く）、集中モード設定 |
+| 通知（右端） | ベル + 赤いバッジ（消去後に届いた件数、10 件以上は 9+） | 最新 15 件の通知一覧（クリックでそのアプリを開く）・すべて消去、通知センターを開く（隠れた標準メニューバーの時計をアクセシビリティ経由でクリック）、通知設定、集中モード（下記）、ショートカットを追加（足りなければ `focus-shortcuts` で取り込み、そろっていればショートカットアプリを開く）、集中モード設定 |
 | 時計 | 日付・曜日・時刻 | 大きな時刻（中央）、**画像で描く月カレンダー**（`pkgs/calendar/render.py`、Pillow + ヒラギノ。月送り・曜日・6 週の行を別々の画像に。日曜・祝日は赤、土曜は青、今日は塗りの丸、選んだ日は輪、予定のある日は右上に件数のバッジ、前後の月は薄く。祝日はカレンダー「日本の祝日」から）、**日付を押すとその日の予定**（最大 5 行。`event.js list` で読み、行を押すと**編集**（タイトル・時間・通知）/ **削除**。祝日など読み取り専用は不可）、**予定を追加…**（選んだ日に。タイトル → 時間（`pkgs/calendar/timepicker.js` の画面: 開始・終了を 15 分刻みのプルダウンで選ぶ / 終日のチェック）→ カレンダー → 通知（開始の何分前か。終日は当日 9 時。EKAlarm で付けるので macOS が通知を出す）を入力画面で尋ね、`pkgs/calendar/event.js` が EventKit で登録。カレンダーアプリは開かない）、カレンダーのアカウント（インターネットアカウント設定を開く。Google / Outlook を追加すると予定の表示・追加先になり同期される）、日付と時刻設定 |
 
 - sketchybar 本体はパッチ版（`services.sketchybar.package`）。`topmost=on` のバーのウィンドウレベルを
@@ -166,9 +167,17 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 - 通知一覧は通知センターのデータベース（`~/Library/Group Containers/group.com.apple.usernoted/db2/db`）を
   `notifList`（Python）で読む。sketchybar に**フルディスクアクセス**が必要（ない場合はメニューに案内を表示）。
   「すべて消去」は消去した時刻を `~/Library/Caches/sketchybar-notify-cleared` に記録して、それより前を表示しないだけ（macOS の通知センター側は消えない。DB は書き換えない）。
-- 集中モード: ショートカット「集中モード: <名前> オン / オフ」（`is.workflow.actions.dnd.set`。名前で指定、オンは `Enabled: 1`、オフは指定なし）を
+- 集中モード: ショートカット「集中モード: <名前> オン / オフ」（`is.workflow.actions.dnd.set`。モードは識別子で指定、オンは `Enabled: 1`、オフは指定なし）を
   通知メニューに 1 モード 1 行で並べ、押すと今の状態の逆を実行。今の状態は `~/Library/DoNotDisturb/DB/Assertions.json`（フルディスクアクセス）から読み、
-  オンは ● と緑。標準モードの名前 → 識別子は `focus_id`。ショートカットの名前は NFD（濁点が分かれた形）で返るので `nfc` で揃えて比べる。
+  オンは ● と緑。ショートカットの名前は NFD（濁点が分かれた形）で返るので `nfc` で揃えて比べる。
+  - **モードの一覧は `focusModes`（modules/desktop.nix）が唯一の正**。ここから `focus_id`（名前 → 識別子）と、`focus-shortcuts` が取り込むショートカットの中身の両方を作る。
+  - メニューに出るのは、ショートカットがあるモード（`shortcuts list` から探す。フォルダの中も含む）。`focusModes` にないモードは状態が分からず、押すと毎回「オン」を実行する。
+  - 「ショートカットを追加…」は、足りないショートカットがあれば `focus-shortcuts` で取り込み画面を開き、そろっていればショートカットアプリを開く。
+  - rebuild のたびに `focus-shortcuts --check` で確認だけ行い、足りなければメッセージを出す（取り込み画面は勝手に開かない）。
+  - 標準モードの識別子: おやすみ `com.apple.donotdisturb.mode.default` / 睡眠 `com.apple.sleep.sleep-mode` / 仕事 `com.apple.focus.work` /
+    パーソナル `com.apple.focus.personal-time` / 割り込みを減らす `com.apple.focus.reduce-interruptions`。
+    それ以外（自分で作ったモードなど）の識別子は、そのモードをオンにした状態で Assertions.json の `assertionDetailsModeIdentifier` を見る（フルディスクアクセスが必要）。
+  - ショートカットはフォルダ「SketchyBar」にまとめている（フォルダは手作業。コマンドから作れない）。
 - 入力ソースを直接選んで切り替える CLI（macism など）は Homebrew / nixpkgs にないため、一覧は表示のみ。
 
 sketchybar を無効にする手順: `services.sketchybar.enable = false`、AeroSpace の `gaps.outer.top = 3`（単一値に戻す）。AeroSpace の `exec-on-workspace-change`（sketchybar への通知）は
@@ -184,6 +193,38 @@ Digital Color Meter だけ（ダイアログ・シートは AeroSpace が自動�
 
 AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`・`alt-shift-N` ワークスペース /
 `alt-f` フルスクリーン / `alt-tab` ワークスペースを次のモニターへ。
+
+---
+
+## 冪等性と手作業の設定
+
+方針: **このリポジトリと `rebuild` だけで、何回実行しても同じ状態になる**ようにする。
+`rebuild` で入れられないもの（macOS が外からの設定を許さないもの）は、下の一覧にまとめて手順を残す。
+
+- 起動時の処理（activation）は、すでにその状態なら何もしない作りにする（`mkdir -p`、Rosetta は入っていれば飛ばす、`focus-shortcuts --check` は確認だけ）。
+- Homebrew は Brewfile にないものを毎回消すので、書いた内容と一致する。ただし `autoUpdate` / `upgrade` が有効なので、
+  **入る版は実行した日によって変わる**（Claude Code などを常に最新にするための意図した設定。版の固定はしない）。
+- Nix のパッケージの版は `flake.lock` で固定。更新は `nix flake update` → `rebuild`。
+- **リモートの git リポジトリはまだない**。この Mac が壊れると設定も失われるので、プライベートなリポジトリへの push を推奨。
+
+### 手作業が必要な設定（新しい Mac・作り直したとき）
+
+| 何を | どこで | 理由・メモ |
+|------|--------|------------|
+| Nix と Homebrew のインストール、このリポジトリを `~/.config/nix-darwin` に置く | ターミナル | rebuild の前提（README の「新しい Mac にセットアップする」） |
+| sketchybar に **フルディスクアクセス** | プライバシーとセキュリティ > フルディスクアクセス | 通知一覧・集中モードの状態を読む |
+| sketchybar に **アクセシビリティ** | 同 > アクセシビリティ | 通知センター・ビデオエフェクトを開く、入力ソース切り替え、絵文字 |
+| sketchybar に **Bluetooth**・**カレンダー** | 初回に出る確認で許可 | `blueutil`、`icalBuddy` / `event.js` |
+| menubar-click-guard に **アクセシビリティ** | プライバシーとセキュリティ > アクセシビリティ | パスは `/nix/store/…-menubar-click-guard-1.0/bin/menubar-click-guard`。許可がないと 30 秒ごとに再試行 |
+| AeroSpace に **アクセシビリティ** | 同上 | ウィンドウ操作 |
+| 標準の Space を各ディスプレイ 1 つに、ログアウト | Mission Control・ログアウト | AeroSpace と `spans-displays` の反映 |
+| 集中モード（おやすみ・睡眠・仕事）を追加 | システム設定 > 集中モード | 追加されていないモードは切り替えられない |
+| 集中モードのショートカットを取り込む | `focus-shortcuts` を実行 →「ショートカットを追加」を押す | 署名と取り込みの確認は macOS の仕様で手作業。その後フォルダ「SketchyBar」へ移す |
+| Blu-ray の `keydb.cfg` | `~/Library/Preferences/aacs/` に置く | FindVUK Online Database から手動ダウンロード |
+| Nix / Homebrew 管理外のアプリ | 各配布元 | 上の「Nix / Homebrew 管理外のアプリ」の表 |
+
+- sketchybar・menubar-click-guard は、パッケージが変わる（nix store のパスが変わる）と許可を付け直す必要がある。
+  古いパスの許可が一覧に残るので、ときどき「プライバシーとセキュリティ」で削除する。
 
 ---
 
