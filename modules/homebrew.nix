@@ -59,6 +59,7 @@ in
 
       # Fonts
       "font-hack-nerd-font"
+      "font-hackgen"        # sketchybar のカレンダー（全角 = 英数字 2 文字分の等幅）
 
       # Terminal / Dev
       "claude-code"             # nixpkgs 版は更新が遅いため cask で最新を追従

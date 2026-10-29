@@ -57,7 +57,7 @@ let
   lib = pkgs.writeText "sketchybar-lib.sh" ''
     FG=0xffc0caf5; SUB=0xff9aa5ce; DIM=0xff565f89; ACCENT=0xff7aa2f7; GREEN=0xff9ece6a; RED=0xfff7768e
     POPUPS="apple clock notify input battery volume bluetooth wifi vpn camera"
-    MONO="Hack Nerd Font Mono:Regular:13.0"
+    MONO="HackGen:Regular:13.0" # 全角 = 英数字 2 文字分の等幅（カレンダーの列を揃える）
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
     NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"
     WIFI_SCAN="$HOME/Library/Caches/sketchybar-wifi-scan" # 直近のスキャン結果
@@ -85,13 +85,16 @@ let
 
     # 作ったメニュー項目（幅を揃える対象を探すため）と、クリックできる項目（ハイライトする）
     MENU_ROWS=(); CLICKABLE_ROWS=()
+    # メニューの中身はここに貯めて、最後に 1 回の sketchybar 呼び出しでまとめて送る。
+    # 途中で別の処理（裏のスキャン後の作り直しなど）が割り込んで行の順番が崩れないように
+    BATCH=()
     HOVER_STYLE=(background.color=0xff2f3549 background.corner_radius=5 background.height=24
                  background.drawing=off script="${hover}")
 
     # クリックできる行: ハイライトを付けて、マウスの出入りを受け取る
     make_clickable() {
       CLICKABLE_ROWS+=("$1")
-      sketchybar --set "$1" "''${HOVER_STYLE[@]}" --subscribe "$1" mouse.entered mouse.exited
+      BATCH+=(--set "$1" "''${HOVER_STYLE[@]}" --subscribe "$1" mouse.entered mouse.exited)
     }
 
     # 行の幅の見積もり（実測から: 英数字 1 文字 ≒ 7.5、全角 ≒ 12.5）。表示する前に幅を決めて、
@@ -107,9 +110,8 @@ let
     }
     # クリックできる行の幅を、一番広い行の見積もりに揃える（build_menu の後・表示の前に呼ぶ）
     apply_widths() {
-      local row args=()
-      for row in "''${CLICKABLE_ROWS[@]}"; do args+=(--set "$row" width="$MAX_WIDTH"); done
-      [ ''${#args[@]} -gt 0 ] && sketchybar "''${args[@]}"
+      local row
+      for row in "''${CLICKABLE_ROWS[@]}"; do BATCH+=(--set "$row" width="$MAX_WIDTH"); done
       return 0
     }
 
@@ -126,7 +128,7 @@ let
       [ -z "$icon" ] && style+=(icon.drawing=off label.padding_left=12) # アイコンなしの行
       if [ $# -gt 0 ]; then style+=(icon.color=$FG label.color=$FG click_script="$ACTION $*")
       else style+=(icon.color=$SUB label.color=$SUB); fi
-      sketchybar --add item "$parent.dyn.$name" popup."$parent" --set "$parent.dyn.$name" "''${style[@]}"
+      BATCH+=(--add item "$parent.dyn.$name" popup."$parent" --set "$parent.dyn.$name" "''${style[@]}")
       MENU_ROWS+=("$parent.dyn.$name")
       estimate "$label" 62 75 125
       [ $# -gt 0 ] && make_clickable "$parent.dyn.$name"
@@ -139,32 +141,33 @@ let
       local style=(icon.drawing=off label="$text" label.font="$MONO" label.color="$color"
                    label.padding_left=12 label.padding_right=16)
       [ $# -gt 0 ] && style+=(click_script="$ACTION $*")
-      sketchybar --add item "$parent.dyn.$name" popup."$parent" --set "$parent.dyn.$name" "''${style[@]}"
+      BATCH+=(--add item "$parent.dyn.$name" popup."$parent" --set "$parent.dyn.$name" "''${style[@]}")
       MENU_ROWS+=("$parent.dyn.$name")
-      estimate "$text" 40 80 130
+      estimate "$text" 40 70 135
       [ $# -gt 0 ] && make_clickable "$parent.dyn.$name"
       return 0
     }
 
     # menu_header <親> <名前> <見出し>
     menu_header() {
-      sketchybar --add item "$1.dyn.$2" popup."$1" --set "$1.dyn.$2" icon.drawing=off \
-        label="$3" label.font="Hack Nerd Font:Bold:11.0" label.color=$ACCENT \
-        label.padding_left=10 padding_left=0
+      BATCH+=(--add item "$1.dyn.$2" popup."$1" --set "$1.dyn.$2" icon.drawing=off
+        label="$3" label.font="Hack Nerd Font:Bold:11.0" label.color=$ACCENT
+        label.padding_left=10 padding_left=0)
       MENU_ROWS+=("$1.dyn.$2")
       estimate "$3" 24 65 110
     }
 
     # menu_slider <親> <名前> <アイコン> <割合> <スクリプト>
     menu_slider() {
-      sketchybar --add slider "$1.dyn.$2" popup."$1" 180 \
-        --set "$1.dyn.$2" icon="$3" icon.padding_left=10 icon.padding_right=8 label.drawing=off \
-          slider.percentage="$4" slider.highlight_color=$ACCENT \
-          slider.background.height=6 slider.background.corner_radius=3 slider.background.color=0xff414868 \
-          slider.knob="●" slider.knob.color=$FG padding_right=16 script="$5" \
-        --subscribe "$1.dyn.$2" mouse.clicked
+      BATCH+=(--add slider "$1.dyn.$2" popup."$1" 180
+        --set "$1.dyn.$2" icon="$3" icon.padding_left=10 icon.padding_right=8
+          label="$4%" label.width=44 label.align=right label.padding_right=4 label.color=$SUB
+          slider.percentage="$4" slider.highlight_color=$ACCENT
+          slider.background.height=6 slider.background.corner_radius=3 slider.background.color=0xff414868
+          slider.knob="●" slider.knob.color=$FG padding_right=16 script="$5"
+        --subscribe "$1.dyn.$2" mouse.clicked)
       MENU_ROWS+=("$1.dyn.$2")
-      [ "$MAX_WIDTH" -lt 240 ] && MAX_WIDTH=240
+      [ "$MAX_WIDTH" -lt 290 ] && MAX_WIDTH=290
       return 0
     }
 
@@ -176,10 +179,9 @@ let
             sketchybar --set "$NAME" popup.drawing=off
           else
             close_all
-            sketchybar --remove "/$NAME\.dyn\..*/" >/dev/null 2>&1
             build_menu
             apply_widths
-            sketchybar --set "$NAME" popup.drawing=on
+            sketchybar --remove "/$NAME\.dyn\..*/" "''${BATCH[@]}" --set "$NAME" popup.drawing=on 2>/dev/null
           fi
           exit 0 ;;
         mouse.exited.global)
@@ -188,9 +190,9 @@ let
         # 開いたまま中身だけ作り直す（sketchybar --trigger menu_rebuild TARGET=<項目>）
         menu_rebuild)
           if [ "$TARGET" = "$NAME" ]; then
-            sketchybar --remove "/$NAME\.dyn\..*/" >/dev/null 2>&1
             build_menu
             apply_widths
+            sketchybar --remove "/$NAME\.dyn\..*/" "''${BATCH[@]}" 2>/dev/null
           fi
           exit 0 ;;
       esac
@@ -225,6 +227,11 @@ let
       vpn-settings)      pane com.apple.NetworkExtensionSettingsUI.NESettingsUIExtension ;;
       sound-settings)    pane com.apple.Sound-Settings.extension ;;
       battery-settings)  pane com.apple.Battery-Settings.extension ;;
+      # 電力モードの変更（引数: b / c と 0 / 1 / 2）。管理者のパスワードを macOS の画面で尋ねる
+      power-mode)
+        case "$2$3" in b0|b1|b2|c0|c1|c2) ;; *) exit 0 ;; esac
+        osascript -e "do shell script \"/usr/bin/pmset -$2 powermode $3\" with administrator privileges" >/dev/null 2>&1
+        refresh 0 ;;
       datetime-settings) pane com.apple.Date-Time-Settings.extension ;;
       notify-settings)   pane com.apple.Notifications-Settings.extension ;;
       keyboard-settings) pane com.apple.Keyboard-Settings.extension ;;
@@ -372,20 +379,44 @@ let
   '';
 
   # ── 時計 ──────────────────────────────────────────────────────────────── #
+  # カレンダーの月送り行。スライダーを流用して 1 行に ◀ 月名 ▶ を並べ、クリック位置で分ける
+  # （左 3 割 = 前の月 / 右 3 割 = 次の月 / 真ん中の月名 = 今月）
+  calNav = plugin "cal-nav" ''
+    [ "$SENDER" = "mouse.clicked" ] || exit 0
+    if   [ "''${PERCENTAGE:-50}" -lt 30 ]; then exec ${action} cal-shift -1
+    elif [ "''${PERCENTAGE:-50}" -gt 70 ]; then exec ${action} cal-shift 1
+    else exec ${action} cal-shift 0; fi
+  '';
+
   # 時刻・月カレンダー・直近の予定をメニュー内に表示（外部アプリは開かない）
   icalBuddy = "/opt/homebrew/bin/icalBuddy"; # Homebrew の ical-buddy（modules/homebrew.nix）
 
   clock = plugin "clock" (header + ''
     weekday_ja() { case "$(date '+%u')" in 1) echo 月;; 2) echo 火;; 3) echo 水;; 4) echo 木;; 5) echo 金;; 6) echo 土;; 7) echo 日;; esac; }
 
-    # 月カレンダー（等幅の行で表示。今日は [ ] で囲む）
+    # 月カレンダー
+    #   1 行目: ◀ 2026年10月 ▶（月送り）
+    #   2 行目: 日 月 火 水 木 金 土
+    #   以降:   日付（HackGen の等幅で列を揃える。今日は [ ] で囲み、その週の行を強調）
     calendar() {
-      local p=clock off sign y m row i=0 d pat=x rep color
+      local p=clock off sign y m row i=0 d pat=x rep color title
       off="$(cat "$CAL_STATE" 2>/dev/null || echo 0)"
       if [ "$off" -ge 0 ]; then sign="+$off"; else sign="$off"; fi
       read -r y m < <(date -v1d -v"''${sign}m" '+%Y %-m')
-      menu_header $p h.cal "''${y}年''${m}月"
-      menu_text $p cal.wd " Su Mo Tu We Th Fr Sa" "$SUB"
+      title="''${y}年''${m}月"
+      [ "$off" != 0 ] && title="$title ・今月へ"
+
+      BATCH+=(--add slider "$p.dyn.cal.nav" popup."$p" 130
+        --set "$p.dyn.cal.nav" icon="◀" icon.color=$SUB icon.padding_left=14 icon.padding_right=4
+          label="▶" label.color=$SUB label.padding_left=4 label.padding_right=14
+          slider.percentage=50 slider.knob="$title" slider.knob.color=$FG
+          slider.knob.font="Hack Nerd Font:Bold:13.0"
+          slider.background.drawing=off slider.highlight_color=0x00000000
+          script="${calNav}"
+        --subscribe "$p.dyn.cal.nav" mouse.clicked)
+      MENU_ROWS+=("$p.dyn.cal.nav")
+
+      menu_text $p cal.wd "日 月 火 水 木 金 土" "$SUB"
       # 表示中の月が今月なら、今日の日付を [ ] で囲む（前後の空白と置き換えるので幅は変わらない）
       if [ "$y $m" = "$(date '+%Y %-m')" ]; then
         d="$(date '+%-d')"
@@ -394,13 +425,10 @@ let
       while IFS= read -r row; do
         [ -z "''${row// /}" ] && continue
         i=$((i + 1))
-        row=" $(printf '%-20s' "$row") "; color="$FG"
-        case "$row" in *"$pat"*) row="''${row/"$pat"/"$rep"}"; color="$ACCENT" ;; esac
-        menu_text $p "cal.$i" "$row" "$color"
+        row="$(printf '%-20s' "$row")"; color="$FG"
+        case " $row " in *"$pat"*) row=" $row "; row="''${row/"$pat"/"$rep"}"; row="''${row:1}"; color="$ACCENT" ;; esac
+        menu_text $p "cal.$i" "''${row%% }" "$color"
       done < <(LANG=C cal -h "$m" "$y" | tail -n +3)
-      menu_text $p cal.prev "◀ 前の月" "$SUB" cal-shift -1
-      menu_text $p cal.next "次の月 ▶" "$SUB" cal-shift 1
-      [ "$off" != 0 ] && menu_text $p cal.now "● 今月に戻る" "$SUB" cal-shift 0
     }
 
     # 今日から 1 週間の予定（カレンダー.app のデータを icalBuddy で読む）
@@ -423,7 +451,10 @@ let
     build_menu() {
       local p=clock
       menu_header $p h.now "$(date '+%Y年%-m月%-d日')（$(weekday_ja)）"
-      menu_text $p now "$(date '+%H:%M')" "$FG"
+      BATCH+=(--add item "$p.dyn.now" popup."$p" --set "$p.dyn.now" icon.drawing=off
+        label="$(date '+%H:%M')" label.font="Hack Nerd Font:Bold:22.0" label.color=$FG
+        label.padding_left=12 label.padding_right=16)
+      MENU_ROWS+=("$p.dyn.now")
       calendar
       events
       menu_item $p dt "󰒓" "日付と時刻設定…" datetime-settings
@@ -545,11 +576,11 @@ let
 
     # 最新の通知（クリックでそのアプリを開く）
     notification_list() {
-      local p=notify i=0 bid app when title body text
+      local p=notify i=0 bid app when title body text LC_ALL=en_US.UTF-8
       menu_header $p h.list "通知（最新 15 件）"
       while IFS=$'\x1f' read -r bid app when title body; do
         if [ "$bid" = ERROR ]; then
-          menu_item $p n.err "" "一覧を表示するには sketchybar にフルディスクアクセスを許可してください"
+          menu_item $p n.err "" "表示にはフルディスクアクセスが必要です"
           menu_item $p n.fda "󰒓"  "フルディスクアクセスの設定…" fda-settings
           return
         fi
@@ -557,8 +588,9 @@ let
         text="$app"
         [ -n "$title" ] && text="$text: $title"
         [ -n "$body" ] && text="$text — $body"
+        # 長い通知は 40 文字で切る（幅の見積もりも切った後の文字で行うので、メニューが広がりすぎない）
+        [ "''${#text}" -gt 40 ] && text="''${text:0:40}…"
         menu_item $p "n.$i" "" "$when  $text" open-app "$bid"
-        sketchybar --set "$p.dyn.n.$i" label.max_chars=64
       done < <(notifications 15)
       if [ "$i" -eq 0 ]; then menu_item $p n.none "" "通知はありません"
       else menu_item $p n.clear "" "すべて消去" notify-clear; fi
@@ -581,7 +613,8 @@ let
         menu_item $p "focus.$i" "" "''${sc#集中モード: }" focus-run "$i"
       done < <(focus_shortcuts)
       if [ "$i" -eq 0 ]; then
-        menu_item $p focus.none "" "「集中モード: 〜」という名前のショートカットを作ると、ここから切り替えられます"
+        # 切り替え用のショートカット（名前が「集中モード: 〜」）がまだない
+        menu_item $p focus.none "" "切り替え用ショートカットがありません"
         menu_item $p focus.app  "" "ショートカットを開く" shortcuts-app
       fi
       menu_item $p focus  "󰒓" "集中モード設定…" focus-settings
@@ -601,6 +634,20 @@ let
 
   # ── バッテリー ────────────────────────────────────────────────────────── #
   battery = plugin "battery" (header + ''
+    # 電力モード（pmset の powermode: 0 = 自動 / 1 = 低電力 / 2 = 高出力）を選ぶ行
+    # power_modes <b = バッテリー | c = 電源アダプタ> <見出し>
+    power_modes() {
+      local section cur m icon label
+      if [ "$1" = b ]; then section="Battery Power"; else section="AC Power"; fi
+      cur="$(pmset -g custom | awk -v s="$section:" '$0 == s {f = 1; next} /^[A-Z]/ {f = 0} f && $1 == "powermode" {print $2}')"
+      menu_header battery "h.pm$1" "$2"
+      for m in 0 1 2; do
+        if [ "$m" = "''${cur:-0}" ]; then icon="󰐾"; else icon="󰐽"; fi
+        case "$m" in 0) label="自動" ;; 1) label="低電力" ;; 2) label="高出力" ;; esac
+        menu_item battery "pm$1.$m" "$icon" "$label" power-mode "$1" "$m"
+      done
+    }
+
     build_menu() {
       local p=battery info pct src remain lpm
       info="$(pmset -g batt)"
@@ -611,12 +658,11 @@ let
       elif [ -z "$remain" ]; then remain="計算中"
       elif echo "$info" | grep -q 'AC Power'; then remain="満充電まで $remain"
       else remain="残り $remain"; fi
-      lpm="$(pmset -g | awk '/lowpowermode/{print $2}')"
       menu_item $p pct    "󰁹" "残量 ''${pct:-?}"
       menu_item $p src    "󰂄"  "電源: $src"
       menu_item $p remain "󰥔"    "$remain"
-      if [ "$lpm" = 1 ]; then menu_item $p lpm "󰌪" "低電力モード: オン"
-      else menu_item $p lpm "󰌪" "低電力モード: オフ"; fi
+      power_modes b "電力モード（バッテリー）"
+      power_modes c "電力モード（電源アダプタ）"
       menu_item $p activity "󰄪" "アクティビティモニタ" activity
       menu_item $p settings "󰒓"   "バッテリー設定…"      battery-settings
     }
@@ -641,7 +687,7 @@ let
       *.out) osascript -e "set volume output volume $PERCENTAGE" ;;
       *.in)  osascript -e "set volume input volume $PERCENTAGE" ;;
     esac
-    sketchybar --set "$NAME" slider.percentage="$PERCENTAGE"
+    sketchybar --set "$NAME" slider.percentage="$PERCENTAGE" label="$PERCENTAGE%"
   '';
 
   volume = plugin "volume" (header + ''
@@ -683,6 +729,7 @@ let
     elif [ "$vol" -ge 60 ]; then icon="󰕾"
     else icon="󰖀"; fi
     sketchybar --set "$NAME" icon="$icon" label="''${vol}%"
+    sketchybar --set volume.dyn.slider.out slider.percentage="$vol" label="$vol%" >/dev/null 2>&1
   '');
 
   # ── Bluetooth ─────────────────────────────────────────────────────────── #
@@ -748,7 +795,11 @@ let
 
     # 周囲のネットワークを裏でスキャンし、終わったらメニューを作り直す
     start_scan() {
+      local lock="$WIFI_SCAN.lock"
+      find "$lock" -maxdepth 0 -mmin +1 -exec rmdir {} \; 2>/dev/null
+      mkdir "$lock" 2>/dev/null || return 0 # すでにスキャン中
       (
+        trap 'rmdir "$lock" 2>/dev/null' EXIT
         tmp="$(mktemp)"
         wifi_scan > "$tmp" && [ -s "$tmp" ] && mkdir -p "$(dirname "$WIFI_SCAN")" && mv "$tmp" "$WIFI_SCAN"
         rm -f "$tmp"
@@ -819,6 +870,30 @@ let
     fi
     sketchybar --set "$NAME" icon="$icon" icon.color="$color" label.drawing=off
   '');
+
+  # ── CPU に合わせて走る猫（RunCat 風・絵はオリジナル）。ノッチのすぐ右 ────── #
+  # 使用率を約 1 秒ごとに測り、コマの間隔を 0.2 秒（暇）〜 0.03 秒（全開）で変える。右に使用率を表示
+  runcatFrames = pkgs.callPackage ../pkgs/runcat { };
+  runcat = plugin "runcat" ''
+    pidfile="''${TMPDIR:-/tmp}/sketchybar-runcat.pid"
+    if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then exit 0; fi
+    (
+      ncpu="$(sysctl -n hw.ncpu)"; i=0; t=0; delay=0.2
+      while sketchybar --query runcat >/dev/null 2>&1; do
+        if [ "$t" -le 0 ]; then
+          cpu="$(ps -A -o %cpu= | awk -v n="$ncpu" '{ s += $1 } END { c = s / n; if (c > 100) c = 100; printf "%d", c }')"
+          delay="$(awk -v c="$cpu" 'BEGIN { printf "%.3f", 0.2 - c * 0.0017 }')"
+          sketchybar --set runcat label="$cpu%"
+          t="$(awk -v d="$delay" 'BEGIN { printf "%d", 1 / d }')" # 約 1 秒分のコマ数
+        fi
+        sketchybar --set runcat icon.background.image="${runcatFrames}/frame-$i.png"
+        i=$(( (i + 1) % 5 )); t=$(( t - 1 ))
+        sleep "$delay"
+      done
+    ) >/dev/null 2>&1 &
+    echo $! > "$pidfile"
+    disown
+  '';
 
   # ── カメラ（使用中だけバーに表示）──────────────────────────────────────── #
   camera = plugin "camera" (header + ''
@@ -1018,6 +1093,15 @@ in
       sketchybar --add item volume right \
         --subscribe volume volume_change mouse.scrolled $MENU \
         --set volume script="${volume}" popup.align=right $POPUP
+
+      # CPU に合わせて走る猫（ノッチのすぐ右 = position e。88x48 px の絵を 0.3 倍 ≒ 26x14 で表示）
+      # 使用率の数字は幅を固定して、桁が変わっても位置がずれないようにする
+      sketchybar --add item runcat e \
+        --set runcat icon="" icon.width=28 icon.background.drawing=on \
+          icon.background.image="${runcatFrames}/frame-0.png" icon.background.image.scale=0.3 \
+          label="0%" label.font="Hack Nerd Font:Bold:11.0" label.color=0xff9aa5ce \
+          label.width=34 label.padding_left=2 \
+          script="${runcat}"
 
       # 入力ソースの切り替えを macOS の通知で受け取る
       sketchybar --add event input_change AppleSelectedInputSourcesChangedNotification
