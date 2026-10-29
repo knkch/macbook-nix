@@ -84,7 +84,7 @@ let
     focus_shortcuts() { shortcuts list 2>/dev/null | grep '^集中モード: '; }
 
     # 作ったメニュー項目（幅を揃える対象を探すため）と、クリックできる項目（ハイライトする）
-    MENU_ROWS=(); CLICKABLE_ROWS=()
+    MENU_ROWS=(); CLICKABLE_ROWS=(); CENTER_ROWS=() # CENTER_ROWS: メニュー幅いっぱいで中央に寄せる行
     # メニューの中身はここに貯めて、最後に 1 回の sketchybar 呼び出しでまとめて送る。
     # 途中で別の処理（裏のスキャン後の作り直しなど）が割り込んで行の順番が崩れないように
     BATCH=()
@@ -112,6 +112,7 @@ let
     apply_widths() {
       local row
       for row in "''${CLICKABLE_ROWS[@]}"; do BATCH+=(--set "$row" width="$MAX_WIDTH"); done
+      for row in "''${CENTER_ROWS[@]}"; do BATCH+=(--set "$row" width="$MAX_WIDTH" align=center); done
       return 0
     }
 
@@ -254,11 +255,17 @@ let
       focus-run) shortcuts run "$(focus_shortcuts | sed -n "$2p")" ;;
 
       # カレンダーの月送り（引数: 月数 / 0 = 今月）
+      # メニューは作り直さず、月送りの行とカレンダーの画像だけ差し替える
+      # （行を消して作り直すと、直後のクリックが古い行に向かい、別の見えない行が拾ってメニューが閉じる）
       cal-shift)
         off="$(cat "$CAL_STATE" 2>/dev/null || echo 0)"
         if [ "$2" = 0 ]; then off=0; else off=$((off + $2)); fi
         echo "$off" > "$CAL_STATE"
-        sketchybar --trigger menu_rebuild TARGET=clock ;;
+        if [ "$off" -ge 0 ]; then sign="+$off"; else sign="$off"; fi
+        read -r y m < <(date -v1d -v"''${sign}m" '+%Y %-m')
+        read -r nav grid < <(${calRender} "$y" "$m" "''${TMPDIR:-/tmp}/sketchybar-calendar" 2>/dev/null)
+        [ -n "$grid" ] && sketchybar --set clock.dyn.cal.nav background.image="$nav" slider.percentage=0 \
+                                     --set clock.dyn.cal.grid background.image="$grid" ;;
 
       # 通知センター: 隠れている標準メニューバーの時計をアクセシビリティ経由でクリックして開く
       # （sketchybar にアクセシビリティの許可が必要。失敗したら通知設定を開く）
@@ -379,14 +386,17 @@ let
   '';
 
   # ── 時計 ──────────────────────────────────────────────────────────────── #
-  # カレンダーの月送り行。スライダーを流用して 1 行に ◀ 月名 ▶ を並べ、クリック位置で分ける
-  # （左 3 割 = 前の月 / 右 3 割 = 次の月 / 真ん中の月名 = 今月）
+  # カレンダーの月送り行。行全体をスライダーにして画像（‹ 年月 ›）を敷き、クリック位置で分ける
+  # （左 2 割 = 前の月 / 右 2 割 = 次の月 / 真ん中 = 今月）。スライダーは帯の外のクリックを無視するため
   calNav = plugin "cal-nav" ''
     [ "$SENDER" = "mouse.clicked" ] || exit 0
-    if   [ "''${PERCENTAGE:-50}" -lt 30 ]; then exec ${action} cal-shift -1
-    elif [ "''${PERCENTAGE:-50}" -gt 70 ]; then exec ${action} cal-shift 1
+    if   [ "''${PERCENTAGE:-50}" -lt 20 ]; then exec ${action} cal-shift -1
+    elif [ "''${PERCENTAGE:-50}" -gt 80 ]; then exec ${action} cal-shift 1
     else exec ${action} cal-shift 0; fi
   '';
+
+  # カレンダーを画像で描く（pkgs/calendar/render.py。日曜・祝日は赤、土曜は青、今日は丸、予定は点）
+  calRender = "${pkgs.python3.withPackages (ps: [ ps.pillow ])}/bin/python3 ${../pkgs/calendar/render.py}";
 
   # 時刻・月カレンダー・直近の予定をメニュー内に表示（外部アプリは開かない）
   icalBuddy = "/opt/homebrew/bin/icalBuddy"; # Homebrew の ical-buddy（modules/homebrew.nix）
@@ -394,46 +404,37 @@ let
   clock = plugin "clock" (header + ''
     weekday_ja() { case "$(date '+%u')" in 1) echo 月;; 2) echo 火;; 3) echo 水;; 4) echo 木;; 5) echo 金;; 6) echo 土;; 7) echo 日;; esac; }
 
-    # 月カレンダー
-    #   1 行目: ◀ 2026年10月 ▶（月送り）
-    #   2 行目: 日 月 火 水 木 金 土
-    #   以降:   日付（HackGen の等幅で列を揃える。今日は [ ] で囲み、その週の行を強調）
+    # 月カレンダー（月送りの行とカレンダー本体を画像で描いて並べる。幅 224）
     calendar() {
-      local p=clock off sign y m row i=0 d pat=x rep color title
+      local p=clock off sign y m nav grid
       off="$(cat "$CAL_STATE" 2>/dev/null || echo 0)"
       if [ "$off" -ge 0 ]; then sign="+$off"; else sign="$off"; fi
       read -r y m < <(date -v1d -v"''${sign}m" '+%Y %-m')
-      title="''${y}年''${m}月"
-      [ "$off" != 0 ] && title="$title ・今月へ"
+      read -r nav grid < <(${calRender} "$y" "$m" "''${TMPDIR:-/tmp}/sketchybar-calendar" 2>/dev/null)
+      [ -n "$grid" ] || return 0
 
-      BATCH+=(--add slider "$p.dyn.cal.nav" popup."$p" 130
-        --set "$p.dyn.cal.nav" icon="◀" icon.color=$SUB icon.padding_left=14 icon.padding_right=4
-          label="▶" label.color=$SUB label.padding_left=4 label.padding_right=14
-          slider.percentage=50 slider.knob="$title" slider.knob.color=$FG
-          slider.knob.font="Hack Nerd Font:Bold:13.0"
-          slider.background.drawing=off slider.highlight_color=0x00000000
+      # 画像は行の背景に敷く（スライダーの帯に敷くと、帯の「進んだ部分」にも同じ画像が描かれて二重になる）。
+      # スライダーは透明にして、クリック位置を受け取るためだけに使う
+      BATCH+=(--add slider "$p.dyn.cal.nav" popup."$p" 224
+        --set "$p.dyn.cal.nav" icon.drawing=off label.drawing=off
+          background.drawing=on background.color=0x00000000 background.height=30
+          background.image="$nav" background.image.scale=0.5
+          slider.percentage=0 slider.knob="" slider.highlight_color=0x00000000
+          slider.background.drawing=on slider.background.color=0x00000000 slider.background.height=30
           script="${calNav}"
-        --subscribe "$p.dyn.cal.nav" mouse.clicked)
-      MENU_ROWS+=("$p.dyn.cal.nav")
-
-      menu_text $p cal.wd "日 月 火 水 木 金 土" "$SUB"
-      # 表示中の月が今月なら、今日の日付を [ ] で囲む（前後の空白と置き換えるので幅は変わらない）
-      if [ "$y $m" = "$(date '+%Y %-m')" ]; then
-        d="$(date '+%-d')"
-        if [ "$d" -ge 10 ]; then pat=" $d "; rep="[$d]"; else pat="  $d "; rep=" [$d]"; fi
-      fi
-      while IFS= read -r row; do
-        [ -z "''${row// /}" ] && continue
-        i=$((i + 1))
-        row="$(printf '%-20s' "$row")"; color="$FG"
-        case " $row " in *"$pat"*) row=" $row "; row="''${row/"$pat"/"$rep"}"; row="''${row:1}"; color="$ACCENT" ;; esac
-        menu_text $p "cal.$i" "''${row%% }" "$color"
-      done < <(LANG=C cal -h "$m" "$y" | tail -n +3)
+        --subscribe "$p.dyn.cal.nav" mouse.clicked
+        --add item "$p.dyn.cal.grid" popup."$p"
+        --set "$p.dyn.cal.grid" icon.drawing=off label.drawing=off width=224
+          background.drawing=on background.color=0x00000000 background.height=178
+          background.image="$grid" background.image.scale=0.5)
+      MENU_ROWS+=("$p.dyn.cal.nav" "$p.dyn.cal.grid")
+      [ "$MAX_WIDTH" -lt 232 ] && MAX_WIDTH=232
+      return 0
     }
 
     # 今日から 1 週間の予定（カレンダー.app のデータを icalBuddy で読む）
     events() {
-      local p=clock line i=0
+      local p=clock line i=0 LC_ALL=en_US.UTF-8
       menu_header $p h.ev "予定（7日間）"
       if [ ! -x ${icalBuddy} ]; then
         menu_item $p ev.none "󰃭" "ical-buddy が未インストールです"
@@ -442,6 +443,7 @@ let
       while IFS= read -r line; do
         [ -z "$line" ] && continue
         i=$((i + 1))
+        [ "''${#line}" -gt 26 ] && line="''${line:0:26}…"
         menu_item $p "ev.$i" "󰃭" "$line"
       done < <(${icalBuddy} -n -nc -nrd -b "" -iep "datetime,title" -po "datetime,title" -ps "|  |" \
                  -df "%m/%d(%a)" -tf "%H:%M" -li 10 eventsToday+7 2>/dev/null)
@@ -450,14 +452,16 @@ let
 
     build_menu() {
       local p=clock
-      menu_header $p h.now "$(date '+%Y年%-m月%-d日')（$(weekday_ja)）"
       BATCH+=(--add item "$p.dyn.now" popup."$p" --set "$p.dyn.now" icon.drawing=off
         label="$(date '+%H:%M')" label.font="Hack Nerd Font:Bold:22.0" label.color=$FG
-        label.padding_left=12 label.padding_right=16)
-      MENU_ROWS+=("$p.dyn.now")
+        label.padding_left=0 label.padding_right=0)
+      MENU_ROWS+=("$p.dyn.now"); CENTER_ROWS+=("$p.dyn.now")
       calendar
       events
       menu_item $p dt "󰒓" "日付と時刻設定…" datetime-settings
+      # カレンダーの画像（幅 224）をメニューの中央に置く
+      local pad=$(( 4 + (MAX_WIDTH - 224) / 2 ))
+      BATCH+=(--set "$p.dyn.cal.nav" padding_left=$pad --set "$p.dyn.cal.grid" padding_left=$pad)
     }
 
     # 開くたびに今月から表示
@@ -1026,7 +1030,7 @@ in
       # height=33: 標準メニューバーと同じ高さ（低いと下端の 1px にクリックが抜ける）
       # color は不透明（常に表示している標準メニューバーが透けないように）
       sketchybar --bar position=top height=33 color=0xff1a1b26 \
-        padding_left=3 padding_right=3 topmost=on
+        padding_left=12 padding_right=12 topmost=on
 
       sketchybar --default \
         icon.font="Hack Nerd Font:Bold:15.0" \

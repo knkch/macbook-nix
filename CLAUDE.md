@@ -33,6 +33,7 @@ rebuild   # zsh エイリアス
 | `home/nixvim.nix` | Neovim（nixvim）全設定 |
 | `home/desktop.nix` | AeroSpace 設定・Ghostty |
 | `home/vscode.nix` | VS Code の表示言語のみ（本体・拡張は Homebrew） |
+| `pkgs/calendar/` | sketchybar の時計メニューのカレンダー画像を描くスクリプト（`render.py`、メニューを開くたびに約 0.25 秒） |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
 
@@ -107,7 +108,7 @@ nix-darwin 25.05 の cask 指定には `--adopt` がないため、手動イン�
 | 要素 | 管理 | 備考 |
 |------|------|------|
 | AeroSpace | 本体: cask / 設定: `programs.aerospace`（home/desktop.nix） | `start-at-login = true`。キー割当は下記 |
-| sketchybar | `services.sketchybar`（modules/desktop.nix） | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（右端）。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
+| sketchybar | `services.sketchybar`（modules/desktop.nix） | バーの左右の端の余白 12。左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（右端）。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
 | jankyborders | `services.jankyborders`（modules/desktop.nix） | round, width=2（隙間 3 に合わせる） |
 | メニューバー | `_HIHideMenuBar = false` | 標準メニューバーは常に表示し、sketchybar（同じ高さ 33・より上のレベル）で覆う。自動非表示にすると通知バナーが最上部に出て sketchybar の裏に潜る |
 | AeroSpace ギャップ | `gaps`（home/desktop.nix） | すべて `3`。上は macOS がメニューバー分を空けるので内蔵画面 `3`（メニューバー ≒ バー 33）、外部モニター `12`（メニューバー 24 前後とバー 33 の差 9 + 3。未確認）。sketchybar を無効にするときは上も `3` に |
@@ -129,7 +130,7 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 | CPU で走る猫 | ノッチのすぐ右（`position e`） | RunCat 風（絵はオリジナル、`pkgs/runcat`）。CPU 使用率（`ps` の合計 / コア数）を約 1 秒ごとに測り、コマ間隔 0.2〜0.03 秒で走る速さを変える。右に使用率 |
 | カメラ | 使用中だけ表示（緑） | カメラ一覧（使用中の印）、カメラを使えるアプリ（プライバシー設定） |
 | 通知（右端） | ベル + 赤いバッジ（消去後に届いた件数、10 件以上は 9+） | 最新 15 件の通知一覧（クリックでそのアプリを開く）・すべて消去、通知センターを開く（隠れた標準メニューバーの時計をアクセシビリティ経由でクリック）、集中モード（下記）、集中モード設定、通知設定 |
-| 時計 | 日付・曜日・時刻 | 日付、大きな時刻、月カレンダー（1 行目 `◀ 年月 ▶` で月送り: スライダーを流用しクリック位置で左 = 前月 / 右 = 翌月 / 中央 = 今月。曜日は日本語、HackGen で列を揃え、今日は [ ] と行の色）、7 日分の予定（`icalBuddy`）、日付と時刻設定 |
+| 時計 | 日付・曜日・時刻 | 大きな時刻（中央）、**画像で描く月カレンダー**（`pkgs/calendar/render.py`、Pillow + ヒラギノ。日曜・祝日は赤、土曜は青、今日は丸、予定のある日は点、前後の月は薄く。祝日はカレンダー「日本の祝日」から）、月送りの行 `‹ 年月 ›`（画像は行の背景、行全体を透明なスライダーにしてクリック位置で左 2 割 = 前月 / 右 2 割 = 翌月 / 中央 = 今月。スライダーの帯に画像を敷くと「進んだ部分」にも描かれて二重になる。帯の外のクリックは sketchybar が無視する。月送りではメニューを作り直さず画像だけ差し替える: 行を消して作り直すと直後のクリックが古い行に向かい、メニューが閉じる）、7 日分の予定（`icalBuddy`）、日付と時刻設定 |
 
 - sketchybar 本体はパッチ版（`services.sketchybar.package`）。`topmost=on` のバーのウィンドウレベルを
   ステータス（macOS のメニューバーアイコンと同じ）→ PopUpMenu - 1 に上げ、バーの端のクリックが隠れた標準メニューバーに抜けないようにしている。
