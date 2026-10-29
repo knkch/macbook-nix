@@ -20,8 +20,13 @@
     mkdir -p "${config.home.homeDirectory}/.local/share/mpd/playlists" "${config.home.homeDirectory}/Library/Logs/mpd"
   '';
 
-  # rmpc: アルバムアートは Ghostty / cmux の画像表示（kitty プロトコル）で出る。設定は既定のまま
-  programs.rmpc.enable = true;
+  # rmpc: アルバムアートは Ghostty / cmux の画像表示（kitty プロトコル）で出る。
+  # 設定は home/rmpc/config.ron、テーマ（tokyonight）は home/rmpc/tokyonight.ron
+  programs.rmpc = {
+    enable = true;
+    config = builtins.readFile ./rmpc/config.ron;
+  };
+  xdg.configFile."rmpc/themes/tokyonight.ron".source = ./rmpc/tokyonight.ron;
 
   home.packages = [ pkgs.mpc ]; # mpc toggle / next / prev / update など
 

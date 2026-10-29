@@ -33,7 +33,8 @@ rebuild   # zsh エイリアス
 | `home/nixvim.nix` | Neovim（nixvim）全設定 |
 | `home/desktop.nix` | AeroSpace 設定・Ghostty |
 | `home/vscode.nix` | VS Code の表示言語のみ（本体・拡張は Homebrew） |
-| `home/music.nix` | 音楽: mpd（`~/Music/MyLibrary`、CoreAudio、launchd で常駐）・rmpc（TUI、アルバムアート）・mpc。エイリアス `music` = rmpc |
+| `home/music.nix` | 音楽: mpd（`~/Music/MyLibrary`、CoreAudio、launchd で常駐。データ / ログのディレクトリは activation で作成）・rmpc（TUI）・mpc。エイリアス `music` = rmpc |
+| `home/rmpc/` | rmpc の設定 `config.ron`（0.8.0 の既定値 + アルバムアートは Kitty 方式を明示: cmux は TERM_PROGRAM を出さず自動判定で未対応になる）とテーマ `tokyonight.ron`（作者の公開設定を参考に、上に曲情報・下に進行バー、アート 35% / 再生リスト 65%） |
 | `pkgs/calendar/` | sketchybar の時計メニューのカレンダー画像を描く `render.py`（メニューを開くたびに約 0.25 秒）と、予定を追加する `event.js`（JXA + EventKit） |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
@@ -81,6 +82,7 @@ rebuild   # zsh エイリアス
 | Windows App | 1295203466 | 旧 Microsoft Remote Desktop |
 | Microsoft Excel | 462058435 | |
 | Brother iPrint&Scan | 1193539993 | |
+| Rigelian | 1363775934 | mpd の GUI 操作アプリ（有料。mpd は 127.0.0.1 待ち受けなので、iPhone 版から使うには listenAddress の変更が必要） |
 
 > macSKK / XLD は mas インストール失敗のため cask で管理。
 > webex は App Store 版もあるが、画面共有・マイク権限問題のため cask。zoom も cask で管理。
@@ -109,7 +111,7 @@ nix-darwin 25.05 の cask 指定には `--adopt` がないため、手動イン�
 | 要素 | 管理 | 備考 |
 |------|------|------|
 | AeroSpace | 本体: cask / 設定: `programs.aerospace`（home/desktop.nix） | `start-at-login = true`。キー割当は下記 |
-| sketchybar | `services.sketchybar`（modules/desktop.nix） | バーの左右の端の余白 12。左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（右端）。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
+| sketchybar | `services.sketchybar`（modules/desktop.nix） | バーの左右の端の余白 12。`notch_width=186`（実際のノッチ幅 185 に合わせ、ノッチ左右の項目を寄せる）。左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（右端）。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
 | jankyborders | `services.jankyborders`（modules/desktop.nix） | round, width=2（隙間 3 に合わせる） |
 | メニューバー | `_HIHideMenuBar = false` | 標準メニューバーは常に表示し、sketchybar（同じ高さ 33・より上のレベル）で覆う。自動非表示にすると通知バナーが最上部に出て sketchybar の裏に潜る |
 | AeroSpace ギャップ | `gaps`（home/desktop.nix） | すべて `3`。上は macOS がメニューバー分を空けるので内蔵画面 `3`（メニューバー ≒ バー 33）、外部モニター `12`（メニューバー 24 前後とバー 33 の差 9 + 3。未確認）。sketchybar を無効にするときは上も `3` に |
@@ -128,8 +130,8 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 | 音量 | スクロールで音量調整 | 出力音量スライダー（右に %）・ミュート・出力デバイス選択、入力音量スライダー（右に %）・入力デバイス選択（`SwitchAudioSource`）、サウンド設定 |
 | 電池 | 残量 | 残量・電源・残り時間、**電力モード**（自動 / 低電力 / 高出力をバッテリー・電源アダプタ別に。`pmset powermode`、変更時に管理者パスワードの画面が出る）、アクティビティモニタ、バッテリー設定 |
 | 入力ソース | あ / A / カ など | 有効な入力ソース一覧（現在のものに印）、次の入力ソースへ（⌃Space を送る）、絵文字と記号、キーボード設定 |
-| 再生中の曲 | ノッチのすぐ左（`position q`）。再生中 / 一時停止中だけ表示 | アルバム・曲名・アーティスト、前の曲 / 再生・一時停止 / 次の曲（`mpc`）、music（rmpc）を cmux の新しいワークスペースで開く。停止（表示も消える）、バーから隠す（その曲のあいだだけ。`$TMPDIR/sketchybar-music-hidden` に曲を記録）。`mpc idle` のループで変化を待つ |
-| CPU で走る猫 | ノッチのすぐ右（`position e`） | RunCat 風（絵はオリジナル、`pkgs/runcat`）。CPU 使用率（`ps` の合計 / コア数）を約 1 秒ごとに測り、コマ間隔 0.2〜0.03 秒で走る速さを変える。右に使用率 |
+| 再生中の曲 | ノッチのすぐ右（`position e`）。再生中 / 一時停止中だけ表示 | アルバム・曲名・アーティスト、前の曲 / 再生・一時停止 / 次の曲（`mpc`）、music（rmpc）を cmux の新しいワークスペースで開く。停止（表示も消える）、バーから隠す（その曲のあいだだけ。`$TMPDIR/sketchybar-music-hidden` に曲を記録）。`mpc idle` のループで変化を待つ |
+| CPU で走る猫 | ノッチのすぐ左（`position q`） | RunCat 風（絵はオリジナル、`pkgs/runcat`）。CPU 使用率（`ps` の合計 / コア数）を約 1 秒ごとに測り、コマ間隔 0.2〜0.03 秒で走る速さを変える。右に使用率 |
 | カメラ | 使用中だけ表示（緑） | カメラ一覧（使用中の印）、カメラを使えるアプリ（プライバシー設定） |
 | 通知（右端） | ベル + 赤いバッジ（消去後に届いた件数、10 件以上は 9+） | 最新 15 件の通知一覧（クリックでそのアプリを開く）・すべて消去、通知センターを開く（隠れた標準メニューバーの時計をアクセシビリティ経由でクリック）、集中モード（下記）、集中モード設定、通知設定 |
 | 時計 | 日付・曜日・時刻 | 大きな時刻（中央）、**画像で描く月カレンダー**（`pkgs/calendar/render.py`、Pillow + ヒラギノ。月送り・曜日・6 週の行を別々の画像に。日曜・祝日は赤、土曜は青、今日は塗りの丸、選んだ日は輪、予定のある日は右上に件数のバッジ、前後の月は薄く。祝日はカレンダー「日本の祝日」から）、**日付を押すとその日の予定**（最大 5 行、`icalBuddy`）、**予定を追加…**（選んだ日に。タイトル → 時間 `10:00-11:30` / 空欄で終日 → カレンダー → 通知（開始の何分前か。終日は当日 9 時。EKAlarm で付けるので macOS が通知を出す）を入力画面で尋ね、`pkgs/calendar/event.js` が EventKit で登録。カレンダーアプリは開かない）、カレンダーのアカウント（インターネットアカウント設定を開く。Google / Outlook を追加すると予定の表示・追加先になり同期される）、日付と時刻設定 |

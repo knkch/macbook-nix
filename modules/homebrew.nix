@@ -124,6 +124,7 @@ in
       "Windows App"         = 1295203466; # 旧 Microsoft Remote Desktop
       "Microsoft Excel"     = 462058435;
       "Brother iPrint&Scan" = 1193539993;
+      "Rigelian"            = 1363775934; # mpd の操作アプリ（アルバムアート表示。有料）
     };
 
     extraConfig = lib.concatLines (

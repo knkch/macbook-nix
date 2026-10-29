@@ -1024,7 +1024,7 @@ let
     sketchybar --set "$NAME" icon="$icon" icon.color="$color" label.drawing=off
   '');
 
-  # ── 再生中の曲（mpd）。ノッチのすぐ左 ─────────────────────────────────────── #
+  # ── 再生中の曲（mpd）。ノッチのすぐ右 ─────────────────────────────────────── #
   # mpc idle で再生状態の変化を待ち、変わったら music_update を送る（ループは 1 本だけ）。
   # 停止中・mpd が動いていないときは項目を隠す
   music = plugin "music" (header + ''
@@ -1072,7 +1072,7 @@ let
     esac
   '');
 
-  # ── CPU に合わせて走る猫（RunCat 風・絵はオリジナル）。ノッチのすぐ右 ────── #
+  # ── CPU に合わせて走る猫（RunCat 風・絵はオリジナル）。ノッチのすぐ左 ────── #
   # 使用率を約 1 秒ごとに測り、コマの間隔を 0.2 秒（暇）〜 0.03 秒（全開）で変える。右に使用率を表示
   runcatFrames = pkgs.callPackage ../pkgs/runcat { };
   runcat = plugin "runcat" ''
@@ -1226,8 +1226,10 @@ in
       # topmost=on: マウスを上端に寄せて出てくる macOS のメニューバーをバーで覆い隠す
       # height=33: 標準メニューバーと同じ高さ（低いと下端の 1px にクリックが抜ける）
       # color は不透明（常に表示している標準メニューバーが透けないように）
+      # notch_width: 内蔵画面のノッチの実際の幅（185）。ノッチの左右の項目（猫・曲名）をノッチに寄せる
       sketchybar --bar position=top height=33 color=0xff1a1b26 \
-        padding_left=12 padding_right=12 topmost=on
+        padding_left=12 padding_right=12 topmost=on \
+        notch_width=186
 
       sketchybar --default \
         icon.font="Hack Nerd Font:Bold:15.0" \
@@ -1296,16 +1298,16 @@ in
         --subscribe volume volume_change mouse.scrolled $MENU \
         --set volume script="${volume}" popup.align=right $POPUP
 
-      # 再生中の曲（ノッチのすぐ左。長い曲名は 30 文字まで。停止中は隠れる）
+      # 再生中の曲（ノッチのすぐ右 = position e。長い曲名は 30 文字まで。停止中は隠れる）
       sketchybar --add event music_update
-      sketchybar --add item music q \
+      sketchybar --add item music e \
         --subscribe music music_update $MENU \
         --set music drawing=off label.max_chars=30 label.font="Hack Nerd Font:Bold:12.0" \
           script="${music}" popup.align=center $POPUP
 
-      # CPU に合わせて走る猫（ノッチのすぐ右 = position e。88x48 px の絵を 0.3 倍 ≒ 26x14 で表示）
+      # CPU に合わせて走る猫（ノッチのすぐ左 = position q。88x48 px の絵を 0.3 倍 ≒ 26x14 で表示）
       # 使用率の数字は幅を固定して、桁が変わっても位置がずれないようにする
-      sketchybar --add item runcat e \
+      sketchybar --add item runcat q \
         --set runcat icon="" icon.width=28 icon.background.drawing=on \
           icon.background.image="${runcatFrames}/frame-0.png" icon.background.image.scale=0.3 \
           label="0%" label.font="Hack Nerd Font:Bold:11.0" label.color=0xff9aa5ce \
