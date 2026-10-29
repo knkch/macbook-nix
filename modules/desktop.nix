@@ -56,7 +56,7 @@ let
   # 項目名は「<親>.dyn.<名前>」。クリック時の操作は $ACTION（action スクリプト）に渡す。
   lib = pkgs.writeText "sketchybar-lib.sh" ''
     FG=0xffc0caf5; SUB=0xff9aa5ce; DIM=0xff565f89; ACCENT=0xff7aa2f7; GREEN=0xff9ece6a; RED=0xfff7768e
-    POPUPS="apple clock notify input battery volume bluetooth wifi vpn camera music"
+    POPUPS="apple clock notify input battery volume bluetooth wifi vpn music"
     MPC=${pkgs.mpc}/bin/mpc
     MONO="HackGen:Regular:13.0" # 全角 = 英数字 2 文字分の等幅（カレンダーの列を揃える）
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
@@ -86,7 +86,38 @@ let
     vget() { osascript -e "$1 of (get volume settings)"; }
     ts_json() { ${tailscale} status --json 2>/dev/null; }
     # 集中モードの切り替え用ショートカット（名前が「集中モード: 」で始まるもの）
-    focus_shortcuts() { shortcuts list 2>/dev/null | grep '^集中モード: '; }
+    # ショートカットの名前は濁点が分かれた形（NFD。「ド」=「ト」+「゛」）で返ってくるので、
+    # 比べるときは nfc で濁点をまとめた形にそろえる。実行するときは元の名前のまま使う
+    nfc() { iconv -f UTF-8-MAC -t UTF-8 2>/dev/null; }
+    focus_shortcuts() {
+      shortcuts list 2>/dev/null | while IFS= read -r n; do
+        case "$(printf '%s' "$n" | nfc)" in "集中モード: "*) echo "$n" ;; esac
+      done
+    }
+    # 「集中モード: <名前> オン / オフ」のショートカットがある集中モードの名前（重複なし）
+    focus_modes() { focus_shortcuts | nfc | sed -E 's/^集中モード: //; s/ (オン|オフ)$//' | awk '!seen[$0]++'; }
+    # 集中モードの名前 → macOS の識別子（標準のモードだけ。それ以外は空）
+    focus_id() {
+      case "$1" in
+        おやすみ*) echo com.apple.donotdisturb.mode.default ;; 睡眠) echo com.apple.sleep.sleep-mode ;;
+        仕事) echo com.apple.focus.work ;; パーソナル) echo com.apple.focus.personal-time ;;
+        割り込み*) echo com.apple.focus.reduce-interruptions ;;
+      esac
+    }
+    # 今オンになっている集中モードの識別子（保護領域なので sketchybar のフルディスクアクセスで読む）
+    focus_active() {
+      ${jq} -r '.data[0].storeAssertionRecords[]?.assertionDetails.assertionDetailsModeIdentifier // empty' \
+        "$HOME/Library/DoNotDisturb/DB/Assertions.json" 2>/dev/null
+    }
+    # focus_row_args <行の番号> <名前>: 行の見た目（オンなら ● と緑、オフなら ○）を ARGS に足す
+    focus_row_args() {
+      local id; id="$(focus_id "$2")"
+      if [ -n "$id" ] && focus_active | grep -qx "$id"; then
+        ARGS+=(--set "notify.dyn.focus.$1" icon="●" icon.color=$GREEN label="$2（オン）" label.color=$GREEN)
+      else
+        ARGS+=(--set "notify.dyn.focus.$1" icon="○" icon.color=$SUB label="$2" label.color=$FG)
+      fi
+    }
 
     # 作ったメニュー項目（幅を揃える対象を探すため）と、クリックできる項目（ハイライトする）
     MENU_ROWS=(); CLICKABLE_ROWS=(); CENTER_ROWS=() # CENTER_ROWS: メニュー幅いっぱいで中央に寄せる行
@@ -258,7 +289,7 @@ let
   action = plugin "action" ''
     . ${lib}
     # メニュー内の操作（カレンダーの月送り）以外はメニューを閉じる
-    case "$1" in cal-* | notify-clear) ;; *) close_all ;; esac
+    case "$1" in cal-* | notify-clear | focus-toggle) ;; *) close_all ;; esac
 
     # 入力画面の部品（どれもキャンセルなら失敗を返す）。画面のタイトルは DIALOG_TITLE
     DIALOG_TITLE="予定"
@@ -395,7 +426,23 @@ let
       fda-settings)      open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" ;;
 
       # 集中モード: ショートカットを実行（引数は一覧での番号）
-      focus-run) shortcuts run "$(focus_shortcuts | sed -n "$2p")" ;;
+      # 集中モードのオン / オフを切り替える（引数: 行の番号と名前）。今の状態の逆のショートカットを実行し、その行だけ更新
+      focus-toggle)
+        id="$(focus_id "$3")"
+        if [ -n "$id" ] && focus_active | grep -qx "$id"; then want="オフ"; else want="オン"; fi
+        sc="$(focus_shortcuts | while IFS= read -r n; do [ "$(printf '%s' "$n" | nfc)" = "集中モード: $3 $want" ] && echo "$n"; done | head -1)"
+        [ -n "$sc" ] || exit 0
+        shortcuts run "$sc" >/dev/null 2>&1 &   # まれに終わらないことがあるので待ちすぎない
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+          sleep 0.3
+          if [ "$want" = オン ]; then focus_active | grep -qx "$id" && break; else focus_active | grep -qx "$id" || break; fi
+        done
+        # 状態が変わらなければ知らせる（その集中モードがシステム設定で追加されていない場合など）
+        if [ -n "$id" ]; then
+          if [ "$want" = オン ]; then focus_active | grep -qx "$id" || failed=1; else focus_active | grep -qx "$id" && failed=1; fi
+          [ -n "$failed" ] && notify_msg "集中モード" "「$3」を切り替えられませんでした。システム設定の「集中モード」に追加されているか確認してください"
+        fi
+        ARGS=(); focus_row_args "$2" "$3"; sketchybar "''${ARGS[@]}" ;;
 
       # カレンダーの月送り（引数: 月数 / 0 = 今月）
       # メニューは作り直さず、月送りの行とカレンダーの画像だけ差し替える
@@ -512,7 +559,24 @@ let
     AS
         fi
         refresh 3 ;;
-      camera-privacy) pane "com.apple.preference.security?Privacy_Camera" ;;
+      # ビデオエフェクト（ポートレート・センターフレーム・背景など）: カメラ使用中だけ標準メニューバーに出る
+      # 「オーディオとビデオのコントロール」をアクセシビリティ経由でクリックして開く
+      camera-effects)
+        r="$(osascript - <<'AS' 2>/dev/null
+    tell application "System Events" to tell process "ControlCenter"
+      repeat with mi in menu bar items of menu bar 1
+        try
+          if value of attribute "AXIdentifier" of mi is "com.apple.menuextra.audiovideo" then
+            click mi
+            return "ok"
+          end if
+        end try
+      end repeat
+    end tell
+    return ""
+    AS
+    )"
+        [ "$r" = ok ] || notify_msg "ビデオエフェクト" "カメラを使っているときだけ開けます" ;;
       wifi-join)
         dev="$(wifi_dev)"
         ssid="$(preferred_networks "$dev" | sed -n "$2p")"
@@ -799,19 +863,15 @@ let
       notification_list
       menu_item $p nc "" "通知センターを開く" nc-open
 
-      menu_header $p h.focus "集中モード"
-      if shortcuts list 2>/dev/null | grep -qx '集中モード状態'; then
-        tmp="$(mktemp)"
-        shortcuts run '集中モード状態' --output-path "$tmp" >/dev/null 2>&1
-        cur="$(head -1 "$tmp" 2>/dev/null)"; rm -f "$tmp"
-        menu_item $p focus.state "" "現在: ''${cur:-オフ}"
-      fi
-      while IFS= read -r sc; do
+      # 集中モード: 1 モード 1 行。オンのモードは ● と緑。押すとオン / オフを切り替える
+      menu_header $p h.focus "集中モード（押すとオン / オフ）"
+      while IFS= read -r name; do
         i=$((i + 1))
-        menu_item $p "focus.$i" "" "''${sc#集中モード: }" focus-run "$i"
-      done < <(focus_shortcuts)
+        menu_item $p "focus.$i" "○" "$name" focus-toggle "$i" "$name"
+        ARGS=(); focus_row_args "$i" "$name"; BATCH+=("''${ARGS[@]}")
+      done < <(focus_modes)
       if [ "$i" -eq 0 ]; then
-        # 切り替え用のショートカット（名前が「集中モード: 〜」）がまだない
+        # 切り替え用のショートカット（名前が「集中モード: 〜 オン / オフ」）がまだない
         menu_item $p focus.none "" "切り替え用ショートカットがありません"
         menu_item $p focus.app  "" "ショートカットを開く" shortcuts-app
       fi
@@ -1152,23 +1212,27 @@ let
     disown
   '';
 
-  # ── カメラ（使用中だけバーに表示）──────────────────────────────────────── #
+  # ── カメラ（使用中だけ表示。緑 + 「使用中」。押すとビデオエフェクト）──────────────────────────────────────── #
   camera = plugin "camera" (header + ''
-    build_menu() {
-      local p=camera name used i=0
-      menu_header $p h.cam "カメラ"
-      while IFS=$'\x1f' read -r name used; do
-        [ -z "$name" ] && continue
-        i=$((i + 1))
-        if [ "$used" = 1 ]; then menu_item $p "cam.$i" "󰕧" "$name（使用中）"
-        else menu_item $p "cam.$i" "󰕨" "$name"; fi
-      done < <(cameras)
-      menu_item $p privacy "󰌾" "カメラを使えるアプリ…" camera-privacy
+    # カメラの使用状態は、コントロールセンターの表示（「…カメラを使用中です」）から判定する
+    # （AVFoundation の isInUseByAnotherApplication は、sketchybar にカメラの許可がないと常に「未使用」を返すため）
+    camera_in_use() {
+      osascript - <<'AS' 2>/dev/null | grep -q -E 'カメラ|[Cc]amera'
+    tell application "System Events" to tell process "ControlCenter"
+      repeat with mi in menu bar items of menu bar 1
+        try -- 識別名を持たない項目もあるので 1 つずつ
+          if value of attribute "AXIdentifier" of mi is "com.apple.menuextra.controlcenter" then return description of mi
+        end try
+      end repeat
+    end tell
+    return ""
+    AS
     }
-    handle_popup
 
-    if cameras | cut -d$'\x1f' -f2 | grep -qx 1; then
-      sketchybar --set "$NAME" drawing=on
+
+    # 使用中だけ表示（緑のアイコン + 「使用中」）。使っていなければ隠す
+    if camera_in_use; then
+      sketchybar --set "$NAME" drawing=on icon.color=$GREEN label="使用中" label.color=$GREEN label.drawing=on
     else
       sketchybar --set "$NAME" drawing=off popup.drawing=off
     fi
@@ -1386,10 +1450,11 @@ in
         --subscribe wifi wifi_change system_woke menu_rebuild $MENU \
         --set wifi update_freq=30 script="${wifi}" popup.align=right $POPUP
 
+      # カメラ（使用中だけ表示）。押すと、使用中のカメラのビデオエフェクトのメニューを直接開く
       sketchybar --add item camera right \
-        --subscribe camera system_woke $MENU \
-        --set camera icon="󰕧" icon.color=0xff9ece6a label.drawing=off drawing=off \
-          update_freq=3 script="${camera}" popup.align=right $POPUP
+        --subscribe camera system_woke \
+        --set camera icon="󰕧" icon.color=0xff9ece6a drawing=off label.font="Hack Nerd Font:Bold:11.0" \
+          update_freq=3 script="${camera}" click_script="${action} camera-effects"
 
       sketchybar --add item vpn right \
         --subscribe vpn system_woke $MENU \
