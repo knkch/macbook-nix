@@ -21,9 +21,10 @@ in
 
       gaps = {
         # 隙間はすべて 3（jankyborders の枠線 2 / sketchybar の左右余白 3 もこれに合わせている）
-        # top: 内蔵画面（ノッチあり）は macOS が上 32 を空けたままにする → バー 33 との差 1 + 3 = 4、
-        #      外部モニターはバーの高さ 33 + 3
-        outer = { left = 3; right = 3; top = [ { monitor.built-in = 4; } 36 ]; bottom = 3; };
+        # top: 標準メニューバーは常に表示（sketchybar で覆う）ので、macOS がその分を空ける。
+        #      内蔵画面（ノッチあり）はメニューバー ≒ バー 33 なので 3、
+        #      外部モニターはメニューバー 24 前後 → バー 33 との差 9 + 3 = 12
+        outer = { left = 3; right = 3; top = [ { monitor.built-in = 3; } 12 ]; bottom = 3; };
         inner = { horizontal = 3; vertical = 3; };
       };
 

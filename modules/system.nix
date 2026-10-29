@@ -62,8 +62,9 @@
       EnableTopTilingByEdgeDrag        = false;  # メニューバーへドラッグでフルスクリーンオフ
       EnableTilingOptionAccelerator    = false;  # Option+ドラッグでタイル表示オフ
     };
-    # SketchyBar を使うのでメニューバーを自動的に隠す
-    NSGlobalDomain._HIHideMenuBar = true;
+    # メニューバーは常に表示し、その上を sketchybar（同じ高さ 33・より上のレベル）で覆う。
+    # 自動で隠すと通知バナーが画面最上部に出て sketchybar の裏に潜るため、隠さない。
+    NSGlobalDomain._HIHideMenuBar = false;
     CustomUserPreferences = {
       ".GlobalPreferences".NSQuitAlwaysKeepsWindows = false;
       "com.apple.loginwindow".TALLogoutSavesState   = false;

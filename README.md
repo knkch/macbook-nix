@@ -84,7 +84,7 @@ rebuild
 | Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
 | macSKK | cask + dotfile | 日本語 IME（SKK-JISYO.L） |
 
-- macOS のメニューバーは自動非表示（sketchybar と重ならないように）。AeroSpace の上ギャップはバーの高さに合わせて 37。
+- macOS のメニューバーは常に表示し、sketchybar で上から覆う（通知バナーがバーの下に出るように）。AeroSpace の隙間は 3。
 - 「ディスプレイごとに個別の操作スペース」はオフ（AeroSpace 推奨、反映にはログアウトが必要）。
 - Dock は自動非表示、操作スペースの自動並べ替えはオフ、Mission Control はアプリごとにグループ化。
 - ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準のウィンドウタイル（画面端ドラッグ / Option+ドラッグ）はオフ（AeroSpace と競合するため）。
@@ -167,7 +167,7 @@ Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox
 
 ### 2026-10-29 sketchybar 再有効化
 
-- **sketchybar**: 標準メニューバー相当の項目を追加（Apple メニュー、ネットワーク / Wi-Fi、Bluetooth、VPN（Tailscale・出口ノード）、音量スライダーと入出力デバイス、電池、入力ソース、通知一覧（要フルディスクアクセス）と集中モード（ショートカット経由）、時計の月カレンダーと予定）
+- **sketchybar**: 標準メニューバー相当の項目を追加（Apple メニュー、ネットワーク / Wi-Fi、Bluetooth、VPN（Tailscale・出口ノード）、音量スライダーと入出力デバイス、電池、入力ソース、通知一覧（要フルディスクアクセス、すべて消去・件数バッジ）と集中モード（ショートカット経由）、時計の月カレンダーと予定）
 - **Homebrew**: `ical-buddy` を追加（時計メニューの予定表示）
 - **sketchybar**: `topmost=on` で標準メニューバーを覆う。内蔵画面（ノッチ）は AeroSpace の上ギャップを 5 に
 - **sketchybar**: 再び有効化。メニューバーを自動非表示に、AeroSpace の上ギャップを 5 → 37 に

@@ -15,6 +15,8 @@ let
     FG=0xffc0caf5; SUB=0xff9aa5ce; DIM=0xff565f89; ACCENT=0xff7aa2f7; GREEN=0xff9ece6a; RED=0xfff7768e
     POPUPS="apple clock notify input battery volume bluetooth wifi vpn"
     MONO="Hack Nerd Font Mono:Regular:13.0"
+    # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
+    NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"
     CAL_STATE="''${TMPDIR:-/tmp}/sketchybar-cal-offset" # カレンダーで表示中の月（今月からのずれ）
 
     wifi_dev() { networksetup -listallhardwareports | awk '/Hardware Port: Wi-Fi/{getline; print $2}'; }
@@ -96,7 +98,7 @@ let
   action = plugin "action" ''
     . ${lib}
     # メニュー内の操作（カレンダーの月送り）以外はメニューを閉じる
-    case "$1" in cal-*) ;; *) close_all ;; esac
+    case "$1" in cal-* | notify-clear) ;; *) close_all ;; esac
     pane() { open "x-apple.systempreferences:$1"; }
     refresh() { sleep "$1"; sketchybar --update; }
 
@@ -129,7 +131,13 @@ let
       emoji)    osascript -e 'tell application "System Events" to key code 49 using {control down, command down}' ;;
       focus-settings)    pane com.apple.Focus-Settings.extension ;;
       shortcuts-app)     open -a Shortcuts ;;
-      open-app)          open -b "$2" ;; # 通知をクリック → そのアプリを開く
+      open-app)          open -b "$2" ;;
+      # 通知を「すべて消去」: 今の時刻を記録して、メニューとベルの件数を作り直す（macOS 側の通知は残る）
+      notify-clear)
+        mkdir -p "$(dirname "$NOTIFY_CLEARED")"
+        echo $(( $(date +%s) - 978307200 )) > "$NOTIFY_CLEARED"
+        sketchybar --trigger menu_rebuild TARGET=notify
+        sketchybar --trigger notify_update ;; # 通知をクリック → そのアプリを開く
       fda-settings)      open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" ;;
 
       # 集中モード: ショートカットを実行（引数は一覧での番号）
@@ -357,13 +365,15 @@ let
     DB = os.path.expanduser("~/Library/Group Containers/group.com.apple.usernoted/db2/db")
     EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)  # Mac の日時の起点
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 15
+    since = float(sys.argv[2]) if len(sys.argv) > 2 else 0  # これより後に届いた通知だけ
 
     try:
         con = sqlite3.connect("file:" + DB + "?mode=ro", uri=True)
         rows = con.execute(
             "SELECT a.identifier, r.data, r.delivered_date FROM record r"
             " JOIN app a ON a.app_id = r.app_id"
-            " ORDER BY r.delivered_date DESC LIMIT ?", (limit,)).fetchall()
+            " WHERE r.delivered_date > ?"
+            " ORDER BY r.delivered_date DESC LIMIT ?", (since, limit)).fetchall()
     except Exception:
         print("ERROR")
         sys.exit(0)
@@ -402,6 +412,8 @@ let
   #   - 「集中モード: 〜」という名前のショートカットをメニューに並べ、クリックで実行
   #   - 「集中モード状態」という名前のショートカット（現在の集中モードを取得して出力）があれば現在の状態を表示
   notify = plugin "notify" (header + ''
+    notifications() { ${notifList} "$1" "$(cat "$NOTIFY_CLEARED" 2>/dev/null || echo 0)"; }
+
     # 最新の通知（クリックでそのアプリを開く）
     notification_list() {
       local p=notify i=0 bid app when title body text
@@ -418,8 +430,9 @@ let
         [ -n "$body" ] && text="$text — $body"
         menu_item $p "n.$i" "󰂚" "$when  $text" open-app "$bid"
         sketchybar --set "$p.dyn.n.$i" label.max_chars=64
-      done < <(${notifList} 15)
-      [ "$i" -eq 0 ] && menu_item $p n.none "󰂚" "通知はありません"
+      done < <(notifications 15)
+      if [ "$i" -eq 0 ]; then menu_item $p n.none "󰂚" "通知はありません"
+      else menu_item $p n.clear "󰆴" "すべて消去" notify-clear; fi
     }
 
     build_menu() {
@@ -446,6 +459,15 @@ let
       menu_item $p notify "󰒓" "通知設定…"       notify-settings
     }
     handle_popup
+
+    # ベルの右上に、消去後に届いた通知の件数をバッジで表示（0 件・読めないときは非表示）
+    count="$(notifications 99 | grep -vcx ERROR)"
+    if [ "$count" -gt 0 ]; then
+      [ "$count" -gt 9 ] && count="9+"
+      sketchybar --set "$NAME" label="$count" label.drawing=on icon.color=$ACCENT
+    else
+      sketchybar --set "$NAME" label.drawing=off icon.color=$FG
+    fi
   '');
 
   # ── バッテリー ────────────────────────────────────────────────────────── #
@@ -776,11 +798,17 @@ in
 
       # メニューを開いたまま中身を作り直すためのイベント（カレンダーの月送り）
       sketchybar --add event menu_rebuild
+      sketchybar --add event notify_update # 通知の件数を更新
 
       # ── 右（右端から）: 通知 / 時計 / バッテリー / 音量 / 入力ソース / Bluetooth / ネットワーク / VPN ──
       sketchybar --add item notify right \
-        --subscribe notify $MENU \
-        --set notify icon="󰂚" label.drawing=off script="${notify}" popup.align=right $POPUP
+        --subscribe notify menu_rebuild notify_update $MENU \
+        --set notify icon="󰂚" label.drawing=off update_freq=60 script="${notify}" \
+          label.font="Hack Nerd Font:Bold:9.0" label.color=0xffffffff label.y_offset=6 \
+          icon.padding_right=0 label.padding_left=3 label.padding_right=3 \
+          label.background.drawing=on label.background.color=0xfff7768e \
+          label.background.corner_radius=6 label.background.height=12 \
+          popup.align=right $POPUP
 
       sketchybar --add item clock right \
         --subscribe clock menu_rebuild $MENU \
