@@ -313,10 +313,9 @@ let
       music-hide)
         $MPC current -f '%file%' > "''${TMPDIR:-/tmp}/sketchybar-music-hidden" 2>/dev/null
         sketchybar --trigger music_update ;;
-      # cmux の新しいワークスペースで rmpc を開く
-      music-open)
-        open -a cmux
-        /Applications/cmux.app/Contents/Resources/bin/cmux new-workspace --name music --command rmpc --focus true >/dev/null 2>&1 ;;
+      # mpd の GUI（Rigelian）を開く。rmpc と同じ mpd を操作するので再生リストも共通
+      # （cmux は外のプロセスからの操作を受け付けないので、rmpc を開く方式はやめた）
+      music-open)   open -a Rigelian ;;
       # 電力モードの変更（引数: b / c と 0 / 1 / 2）。管理者のパスワードを macOS の画面で尋ねる
       power-mode)
         case "$2$3" in b0|b1|b2|c0|c1|c2) ;; *) exit 0 ;; esac
@@ -1024,7 +1023,7 @@ let
     sketchybar --set "$NAME" icon="$icon" icon.color="$color" label.drawing=off
   '');
 
-  # ── 再生中の曲（mpd）。ノッチのすぐ右 ─────────────────────────────────────── #
+  # ── 再生中の曲（mpd）。ノッチのすぐ左 ─────────────────────────────────────── #
   # mpc idle で再生状態の変化を待ち、変わったら music_update を送る（ループは 1 本だけ）。
   # 停止中・mpd が動いていないときは項目を隠す
   music = plugin "music" (header + ''
@@ -1042,9 +1041,13 @@ let
 
     build_menu() {
       local p=music
-      menu_header $p h.song "$($MPC current -f '%album%' 2>/dev/null)"
-      menu_item $p title  "󰝚" "$($MPC current -f '%title%' 2>/dev/null)"
-      menu_item $p artist "" "$($MPC current -f '%artist%' 2>/dev/null)"
+      if [ -n "$($MPC current 2>/dev/null)" ]; then
+        menu_header $p h.song "$($MPC current -f '%album%' 2>/dev/null)"
+        menu_item $p title  "󰝚" "$($MPC current -f '%title%' 2>/dev/null)"
+        menu_item $p artist "" "$($MPC current -f '%artist%' 2>/dev/null)"
+      else
+        menu_item $p title  "󰝚" "再生していません"
+      fi
       menu_item $p prev   "󰒮" "前の曲"            music-prev
       if [ "$($MPC status '%state%' 2>/dev/null)" = playing ]; then
         menu_item $p toggle "󰏤" "一時停止"         music-toggle
@@ -1052,27 +1055,34 @@ let
         menu_item $p toggle "󰐊" "再生"             music-toggle
       fi
       menu_item $p next   "󰒭" "次の曲"            music-next
-      menu_item $p open   "󰏌" "music（rmpc）を開く" music-open
+      menu_item $p open   "󰏌" "Rigelian を開く"         music-open
       menu_item $p stop   "󰓛" "停止"                      music-stop
-      menu_item $p hide   "󰈉" "バーから隠す（次の曲で再表示）" music-hide
+      menu_item $p hide   "󰈉" "曲名を隠す（次の曲で再表示）"   music-hide
     }
     handle_popup
 
-    state="$($MPC status '%state%' 2>/dev/null)"
-    # 「バーから隠す」を選んだ曲のあいだは隠す（曲が変わったら表示に戻る）
+    # 状態: playing / paused / stopped。mpd に接続できなければ off
+    state="$($MPC status '%state%' 2>/dev/null)" || state=off
+    [ -n "$state" ] || state=off
+    # 「曲名を隠す」を選んだ曲のあいだはアイコンだけにする（曲が変わったら曲名に戻る）
     hidden="$(cat "''${TMPDIR:-/tmp}/sketchybar-music-hidden" 2>/dev/null)"
     [ -n "$hidden" ] && [ "$hidden" = "$($MPC current -f '%file%' 2>/dev/null)" ] && state=hidden
     case "$state" in
       playing | paused)
         if [ "$state" = playing ]; then icon="󰝚"; color=$FG; else icon="󰏤"; color=$SUB; fi
         sketchybar --set "$NAME" drawing=on icon="$icon" icon.color="$color" label.color="$color" \
-          label="$($MPC current -f '[%artist% - ]%title%|%file%' 2>/dev/null)" ;;
+          label.drawing=on label="$($MPC current -f '[%artist% - ]%title%|%file%' 2>/dev/null)" ;;
+      # 消さずに小さく残す（クリックでメニューから再生などができる）
+      hidden)
+        sketchybar --set "$NAME" drawing=on icon="󰝚" icon.color=$SUB label.drawing=off ;;
+      stopped)
+        sketchybar --set "$NAME" drawing=on icon="󰝚" icon.color=$DIM label.color=$DIM label.drawing=on label="停止中" ;;
       *)
-        sketchybar --set "$NAME" drawing=off popup.drawing=off ;;
+        sketchybar --set "$NAME" drawing=on icon="󰝚" icon.color=$DIM label.color=$DIM label.drawing=on label="オフ" ;;
     esac
   '');
 
-  # ── CPU に合わせて走る猫（RunCat 風・絵はオリジナル）。ノッチのすぐ左 ────── #
+  # ── CPU に合わせて走る猫（RunCat 風・絵はオリジナル）。ノッチのすぐ右 ────── #
   # 使用率を約 1 秒ごとに測り、コマの間隔を 0.2 秒（暇）〜 0.03 秒（全開）で変える。右に使用率を表示
   runcatFrames = pkgs.callPackage ../pkgs/runcat { };
   runcat = plugin "runcat" ''
@@ -1298,16 +1308,16 @@ in
         --subscribe volume volume_change mouse.scrolled $MENU \
         --set volume script="${volume}" popup.align=right $POPUP
 
-      # 再生中の曲（ノッチのすぐ右 = position e。長い曲名は 30 文字まで。停止中は隠れる）
+      # 再生中の曲（ノッチのすぐ左 = position q。長い曲名は 30 文字まで。停止中は「停止中」、mpd が動いていなければ「オフ」）
       sketchybar --add event music_update
-      sketchybar --add item music e \
+      sketchybar --add item music q \
         --subscribe music music_update $MENU \
-        --set music drawing=off label.max_chars=30 label.font="Hack Nerd Font:Bold:12.0" \
+        --set music label.max_chars=30 label.font="Hack Nerd Font:Bold:12.0" \
           script="${music}" popup.align=center $POPUP
 
-      # CPU に合わせて走る猫（ノッチのすぐ左 = position q。88x48 px の絵を 0.3 倍 ≒ 26x14 で表示）
+      # CPU に合わせて走る猫（ノッチのすぐ右 = position e。88x48 px の絵を 0.3 倍 ≒ 26x14 で表示）
       # 使用率の数字は幅を固定して、桁が変わっても位置がずれないようにする
-      sketchybar --add item runcat q \
+      sketchybar --add item runcat e \
         --set runcat icon="" icon.width=28 icon.background.drawing=on \
           icon.background.image="${runcatFrames}/frame-0.png" icon.background.image.scale=0.3 \
           label="0%" label.font="Hack Nerd Font:Bold:11.0" label.color=0xff9aa5ce \
