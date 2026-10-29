@@ -530,7 +530,7 @@ let
       bt-connect)    ${blueutil} --connect "$2"; refresh 1 ;;
       bt-disconnect) ${blueutil} --disconnect "$2"; refresh 1 ;;
 
-      # Wi-Fi（wifi-join の引数は登録済みネットワーク一覧での番号）
+      # Wi-Fi
       wifi-power)
         networksetup -setairportpower "$(wifi_dev)" "$2"
         refresh 3 ;;
@@ -577,12 +577,6 @@ let
     AS
     )"
         [ "$r" = ok ] || notify_msg "ビデオエフェクト" "カメラを使っているときだけ開けます" ;;
-      wifi-join)
-        dev="$(wifi_dev)"
-        ssid="$(preferred_networks "$dev" | sed -n "$2p")"
-        # 失敗したとき（パスワードが必要など）は何か出力されるので Wi-Fi 設定を開く
-        [ -n "$(networksetup -setairportnetwork "$dev" "$ssid" 2>&1)" ] && pane com.apple.wifi-settings-extension
-        refresh 3 ;;
 
       # Tailscale
       ts-up)   ${tailscale} up;   refresh 2 ;;
