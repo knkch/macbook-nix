@@ -55,11 +55,19 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 ├── modules/
 │   ├── system.nix         # nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults
 │   ├── homebrew.nix       # casks / brews / masApps / VS Code 拡張 / cleanup
-│   └── desktop.nix        # sketchybar（設定・プラグイン込み）・jankyborders・menubar-click-guard
+│   ├── desktop.nix        # jankyborders・menubar-click-guard（sketchybar を読み込む）
+│   └── sketchybar/        # sketchybar 一式
+│       ├── default.nix    #   サービスとバーの設定・protected-reader の常駐
+│       ├── shared.nix     #   共通部品（集中モードの一覧 focusModes など）
+│       ├── lib.nix        #   各プラグインが読み込む共通関数
+│       ├── action.nix     #   メニューの行を押したときの操作
+│       ├── doctor.nix     #   sketchybar-doctor（点検）
+│       └── plugins/       #   バーの各項目（1 ファイル 1 項目）
 ├── pkgs/
 │   ├── menubar-click-guard/  # 画面上端のクリックを sketchybar に届ける常駐プログラム（C）
 │   ├── calendar/          # 時計メニューのカレンダー画像（render.py）・予定の追加（event.js）
 │   ├── focus-shortcuts/   # 集中モードの切り替え用ショートカットを用意するコマンド
+│   ├── protected-reader/  # 通知・集中モードの状態を読む常駐プログラム（フルディスクアクセスはこれだけ）
 │   └── runcat/            # CPU で走る猫のドット絵
 └── home/
     ├── default.nix        # ユーザー情報・dotfiles・imports
@@ -83,9 +91,9 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | GUI アプリ・Claude Code | `homebrew.casks` (modules/homebrew.nix) |
 | App Store アプリ | `homebrew.masApps` (modules/homebrew.nix) |
 | VS Code 本体・拡張 | cask + Brewfile `vscode` 行 (modules/homebrew.nix) |
-| 常駐サービス | `services.sketchybar` / `services.jankyborders` / menubar-click-guard (modules/desktop.nix)、mpd (home/music.nix) |
+| 常駐サービス | `services.sketchybar`・protected-reader (modules/sketchybar/)、`services.jankyborders`・menubar-click-guard (modules/desktop.nix)、mpd (home/music.nix) |
 | VS Code 設定 (`settings.json`) | Nix 管理外・VS Code が直接書き込み |
-| 集中モードのショートカット | `focusModes` (modules/desktop.nix) から生成し、`focus-shortcuts` で取り込む |
+| 集中モードのショートカット | `focusModes` (modules/sketchybar/shared.nix) から生成し、`focus-shortcuts` で取り込む |
 
 > Brewfile にないアプリは rebuild 時に削除される（`brew bundle cleanup`）。
 
@@ -106,6 +114,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | Nix のパッケージを更新 | `nix flake update` → `rebuild`（版は `flake.lock` で固定されている） |
 | 集中モードを増やす | 下の「[集中モード](#集中モードsketchybar-の通知メニュー)」 |
 | 集中モードのショートカットが消えた | `focus-shortcuts` →「ショートカットを追加」を押す |
+| macOS を更新した・バーの一部が動かない | `sketchybar-doctor`（壊れている箇所と直し方を表示） |
 
 > ⚠️ **Homebrew は Brewfile が唯一の正。** `brew install` で手動追加したアプリは、
 > `modules/homebrew.nix` に書かないと次の `rebuild` でアンインストールされる。
@@ -139,7 +148,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 |--------------|------|
 | ショートカットがそろっているか確認 | `focus-shortcuts --check` |
 | 足りないショートカットを取り込む | `focus-shortcuts`（または通知メニューの「ショートカットを追加…」）→ 出てきた画面で「ショートカットを追加」 |
-| 集中モードを増やす | ① システム設定 > 集中モード で追加 → ② `modules/desktop.nix` の `focusModes` に 1 行足す（名前・識別子・表示名）→ ③ `rebuild` → ④ `focus-shortcuts` |
+| 集中モードを増やす | ① システム設定 > 集中モード で追加 → ② `modules/sketchybar/shared.nix` の `focusModes` に 1 行足す（名前・識別子・表示名）→ ③ `rebuild` → ④ `focus-shortcuts` |
 | 集中モードをやめる | `focusModes` から消して `rebuild` → ショートカットアプリでその 2 つを削除 |
 
 - いま登録しているのは おやすみ・睡眠・仕事。ショートカットはフォルダ「SketchyBar」にまとめている。
@@ -236,7 +245,7 @@ Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox
 macOS が外からの設定を許していないため、`rebuild` では入れられないもの。新しい Mac や作り直したときに行う。
 詳しい理由とパスは [CLAUDE.md](CLAUDE.md) の「冪等性と手作業の設定」。
 
-- [ ] sketchybar に **フルディスクアクセス**（通知一覧・集中モードの状態）
+- [ ] protected-reader に **フルディスクアクセス**（通知一覧・集中モードの状態）。sketchybar には与えない
 - [ ] sketchybar に **アクセシビリティ**（通知センター・ビデオエフェクト・入力ソース・絵文字）
 - [ ] sketchybar に **Bluetooth**・**カレンダー**（初回に出る確認で許可）
 - [ ] menubar-click-guard と AeroSpace に **アクセシビリティ**
@@ -245,7 +254,10 @@ macOS が外からの設定を許していないため、`rebuild` では入れ�
 - [ ] Blu-ray を見るなら `keydb.cfg` を `~/Library/Preferences/aacs/` に置く
 - [ ] Nix / Homebrew 管理外のアプリを入れる（上の一覧）
 
-> sketchybar・menubar-click-guard は更新で場所（nix store のパス）が変わると、許可を付け直す必要がある。
+- [ ] 最後に `sketchybar-doctor` を実行して、全部 ✓ になるか確かめる
+
+> sketchybar・menubar-click-guard・protected-reader は、更新で場所（nix store のパス）が変わると許可を付け直す必要がある
+> （ふだんの設定変更では変わらず、`nix flake update` のあとなどに起きる）。`sketchybar-doctor` で分かる。
 > 古い許可は「プライバシーとセキュリティ」の一覧に残るので、ときどき削除する。
 
 > Homebrew は `rebuild` のたびに最新版へ更新する設定（Claude Code などを常に最新にするため）。
@@ -256,9 +268,12 @@ macOS が外からの設定を許していないため、`rebuild` では入れ�
 ### 2026-10-29 整理・冪等性
 
 - **整理**: sketchybar の使われていない処理（カメラ一覧、等幅のメニュー行、未使用の変数など）を削除、同じ AppleScript をまとめた。`font-hackgen`（未使用）と `xxd`（macOS 標準と重複）を削除
-- **集中モード**: モードの一覧を `focusModes`（modules/desktop.nix）に一本化。ショートカットを用意する `focus-shortcuts` を追加し、`rebuild` で不足を確認
+- **集中モード**: モードの一覧を `focusModes`（modules/desktop.nix）に一本化（今は modules/sketchybar/shared.nix）。ショートカットを用意する `focus-shortcuts` を追加し、`rebuild` で不足を確認
 - **通知メニュー**: 「通知設定…」を通知の項目の下へ移し、「ショートカットを追加…」を追加
 - **ドキュメント**: 新しい Mac でのセットアップ手順、手作業が必要な設定の一覧を追加
+- **構成**: sketchybar を `modules/sketchybar/` に分割（1 ファイル 1 項目）。生成されるスクリプトは分割前と同一
+- **権限**: 通知・集中モードの状態を読む `protected-reader` を追加し、sketchybar からフルディスクアクセスを外せるように。通知のバッジがほぼ即時に更新される
+- **点検**: `sketchybar-doctor` を追加。macOS の更新で壊れうる箇所の一覧を CLAUDE.md に追加
 
 ### 2026-10-29 sketchybar の作り込み・音楽
 

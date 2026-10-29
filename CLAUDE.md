@@ -24,7 +24,13 @@ rebuild   # zsh エイリアス
 | `flake.nix` | inputs / outputs。`user` / `host` はここで一元定義し `specialArgs` で各モジュールへ |
 | `modules/system.nix` | nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults（Dock / Spaces / WindowManager 含む）・GC |
 | `modules/homebrew.nix` | Homebrew casks / brews / masApps / VS Code 拡張 / cleanup |
-| `modules/desktop.nix` | 常駐サービス: sketchybar（設定・プラグイン込み）、jankyborders、menubar-click-guard |
+| `modules/desktop.nix` | 常駐サービス: jankyborders、menubar-click-guard。sketchybar は `modules/sketchybar/` を読み込む |
+| `modules/sketchybar/default.nix` | sketchybar のサービス・バーの設定（`sketchybarrc`）、protected-reader の常駐、集中モードのショートカットの確認 |
+| `modules/sketchybar/shared.nix` | 共通部品: `plugin`（スクリプトの作り方）、`focusModes`（集中モードの一覧）、外部コマンドのパス、Wi-Fi の JXA、カレンダーの道具、各プラグインの先頭 `header` |
+| `modules/sketchybar/lib.nix` | 各プラグインが読み込む共通関数（`sketchybar-lib.sh`）: 色・メニューの作り方・幅の見積もり・集中モード・カレンダー |
+| `modules/sketchybar/action.nix` | メニューの行を押したときの操作（`sketchybar-action`） |
+| `modules/sketchybar/plugins/*.nix` | バーの各項目（1 ファイル 1 項目。`build_menu` でメニューを作る） |
+| `modules/sketchybar/doctor.nix` | `sketchybar-doctor`（macOS の更新で壊れていないかの点検） |
 | `home/default.nix` | ユーザー情報・dotfiles・imports |
 | `home/packages.nix` | 一般 CLI / インフラ / クラウドツール |
 | `home/security.nix` | セキュリティツール群（`my.security.enable` で一括オン・オフ） |
@@ -38,7 +44,8 @@ rebuild   # zsh エイリアス
 | `pkgs/calendar/` | sketchybar の時計メニューのカレンダー画像を描く `render.py`（メニューを開くたびに約 0.25 秒）、予定の一覧・追加・編集・削除をする `event.js`（JXA + EventKit）、時間を選ぶ画面 `timepicker.js`（JXA + NSAlert / NSPopUpButton） |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
-| `pkgs/focus-shortcuts/` | 集中モードの切り替え用ショートカットを用意するコマンド `focus-shortcuts`。中身（署名前）は `gen.py` でビルド時に作り、署名と取り込みは実行時。モードの一覧は modules/desktop.nix の `focusModes` |
+| `pkgs/protected-reader/` | 通知の履歴と集中モードの状態（保護領域）を読み、`~/Library/Caches/sketchybar-protected` に書き出す常駐プログラム（Objective-C）。フルディスクアクセスはこれだけに与える |
+| `pkgs/focus-shortcuts/` | 集中モードの切り替え用ショートカットを用意するコマンド `focus-shortcuts`。中身（署名前）は `gen.py` でビルド時に作り、署名と取り込みは実行時。モードの一覧は modules/sketchybar/shared.nix の `focusModes` |
 
 ### 配置の原則
 
@@ -48,7 +55,7 @@ rebuild   # zsh エイリアス
 | ユーザー開発ツール | `home.packages` / `programs.*` (home/*.nix) |
 | 頻繁に更新したい CLI / GUI アプリ | `homebrew.casks` (modules/homebrew.nix) |
 | GUI アプリ（App Store） | `homebrew.masApps` (modules/homebrew.nix) |
-| 常駐サービス | nix-darwin `services.*` (modules/desktop.nix) |
+| 常駐サービス | nix-darwin `services.*` / `launchd.user.agents.*` (modules/desktop.nix・modules/sketchybar/) |
 | dotfiles | `home.file.*` / `xdg.configFile.*` / `programs.*` |
 
 ---
@@ -112,7 +119,7 @@ nix-darwin 25.05 の cask 指定には `--adopt` がないため、手動イン�
 | 要素 | 管理 | 備考 |
 |------|------|------|
 | AeroSpace | 本体: cask / 設定: `programs.aerospace`（home/desktop.nix） | `start-at-login = true`。キー割当は下記 |
-| sketchybar | `services.sketchybar`（modules/desktop.nix） | バーの左右の端の余白 12。`notch_width=186`（実際のノッチ幅 185 に合わせ、ノッチ左右の項目を寄せる）。左: Apple メニュー・ワークスペース 1〜9・前面アプリ / ノッチの左: 再生中の曲・右: CPU で走る猫 / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（右端）。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
+| sketchybar | `services.sketchybar`（modules/sketchybar/） | バーの左右の端の余白 12。`notch_width=186`（実際のノッチ幅 185 に合わせ、ノッチ左右の項目を寄せる）。左: Apple メニュー・ワークスペース 1〜9・前面アプリ / ノッチの左: 再生中の曲・右: CPU で走る猫 / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（右端）。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
 | jankyborders | `services.jankyborders`（modules/desktop.nix） | round, width=2（隙間 3 に合わせる） |
 | メニューバー | `_HIHideMenuBar = false` | 標準メニューバーは常に表示し、sketchybar（同じ高さ 33・より上のレベル）で覆う。自動非表示にすると通知バナーが最上部に出て sketchybar の裏に潜る |
 | AeroSpace ギャップ | `gaps`（home/desktop.nix） | すべて `3`。上は macOS がメニューバー分を空けるので内蔵画面 `3`（メニューバー ≒ バー 33）、外部モニター `12`（メニューバー 24 前後とバー 33 の差 9 + 3。未確認）。sketchybar を無効にするときは上も `3` に |
@@ -157,20 +164,31 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
   （月送り: 左 2 割 = 前月 / 右 2 割 = 翌月 / 中央 = 今月。週: 7 等分してその日を選ぶ。各週の日付は `$TMPDIR/sketchybar-calendar/dates`）。
   スライダーの帯に画像を敷くと二重に描かれ、帯の外のクリックは無視される。操作時はメニューを作り直さず、画像と予定の行の中身だけ差し替える
   （作り直すと直後のクリックが消えた行に向かいメニューが閉じる）。時計のメニューは `popup.height=26` で行を詰めている。
-- 構成: 共通関数 `lib`（メニュー項目の追加・開閉）、操作 `action`、各項目のプラグイン（`build_menu` でメニューを作る）。すべて modules/desktop.nix。
+- 構成: modules/sketchybar/ に、共通部品 `shared.nix`、共通関数 `lib.nix`（メニュー項目の追加・開閉）、操作 `action.nix`、
+  各項目のプラグイン `plugins/`（`build_menu` でメニューを作る）。各ファイルは `ctx`（全部の部品をまとめたもの）を受け取り、
+  自分の部品を返す（`default.nix` で `lib.fix` を使ってまとめる）。ほかのファイルの部品は `inherit (ctx) …` で使う。
+- 部品を足したら `nix run nixpkgs#deadnix -- modules/sketchybar` で使っていない名前がないか確かめる。
 - 初回に許可が必要: Bluetooth（`blueutil`）、カレンダー（`icalBuddy`）、アクセシビリティ（通知センターを開く・入力ソース切り替え・絵文字）。いずれも sketchybar に対して許可する。
+  **フルディスクアクセスは sketchybar に与えない**（protected-reader だけ。下記）。
 - 接続中の SSID は位置情報保護で取れないため、今の接続のチャンネルと RSSI を直近のスキャン結果
   （`~/Library/Caches/sketchybar-wifi-scan`）と照らし合わせて推定する。スキャンは約 5 秒かかるので、
   メニューは前回の結果で開き、裏でスキャンして終わったら作り直す。
 - カメラの一覧・Wi-Fi のスキャンは JXA（`osascript -l JavaScript`）で AVFoundation / CoreWLAN を呼ぶ。カメラの使用状態はコントロールセンターの表示から読む（上の表）。
 - 通知メニューのアイコンは設定を開く行だけ。
-- 通知一覧は通知センターのデータベース（`~/Library/Group Containers/group.com.apple.usernoted/db2/db`）を
-  `notifList`（Python）で読む。sketchybar に**フルディスクアクセス**が必要（ない場合はメニューに案内を表示）。
+- **保護領域の読み取りは protected-reader に分けている**（pkgs/protected-reader、launchd のユーザーエージェント）。
+  sketchybar は外からのコマンド（`sketchybar --set … script=…`）で任意のスクリプトを自分の権限で実行できるので、
+  sketchybar にフルディスクアクセスを与えると、この Mac の何からでも保護されたデータを読めてしまう。そのため:
+  - protected-reader（フルディスクアクセスあり）が 0.5 秒ごとに更新を見て、変わったときだけ読み、必要な分だけを
+    `~/Library/Caches/sketchybar-protected/` に書き出す（自分だけが読める。`notifications` = 最新 99 件、`focus` = オンの集中モード）。
+  - 読むファイルはプログラムに固定（引数で変えられない）。通知が変わると `notify_update` を送るので、ベルのバッジはすぐ更新される。
+  - 読めない理由は `/tmp/protected-reader.log`（`authorization denied` = 許可がない、`no such table / column` = macOS 側の形式が変わった）。
+- 通知一覧は、protected-reader が通知センターのデータベース（`~/Library/Group Containers/group.com.apple.usernoted/db2/db`）から
+  書き出したものを `notifList`（Python）で読む（読めない場合はメニューに案内を表示）。
   「すべて消去」は消去した時刻を `~/Library/Caches/sketchybar-notify-cleared` に記録して、それより前を表示しないだけ（macOS の通知センター側は消えない。DB は書き換えない）。
 - 集中モード: ショートカット「集中モード: <名前> オン / オフ」（`is.workflow.actions.dnd.set`。モードは識別子で指定、オンは `Enabled: 1`、オフは指定なし）を
-  通知メニューに 1 モード 1 行で並べ、押すと今の状態の逆を実行。今の状態は `~/Library/DoNotDisturb/DB/Assertions.json`（フルディスクアクセス）から読み、
+  通知メニューに 1 モード 1 行で並べ、押すと今の状態の逆を実行。今の状態は `~/Library/DoNotDisturb/DB/Assertions.json` を protected-reader が書き出したもの（`focus`）から読み、
   オンは ● と緑。ショートカットの名前は NFD（濁点が分かれた形）で返るので `nfc` で揃えて比べる。
-  - **モードの一覧は `focusModes`（modules/desktop.nix）が唯一の正**。ここから `focus_id`（名前 → 識別子）と、`focus-shortcuts` が取り込むショートカットの中身の両方を作る。
+  - **モードの一覧は `focusModes`（modules/sketchybar/shared.nix）が唯一の正**。ここから `focus_id`（名前 → 識別子）と、`focus-shortcuts` が取り込むショートカットの中身の両方を作る。
   - メニューに出るのは、ショートカットがあるモード（`shortcuts list` から探す。フォルダの中も含む）。`focusModes` にないモードは状態が分からず、押すと毎回「オン」を実行する。
   - 「ショートカットを追加…」は、足りないショートカットがあれば `focus-shortcuts` で取り込み画面を開き、そろっていればショートカットアプリを開く。
   - rebuild のたびに `focus-shortcuts --check` で確認だけ行い、足りなければメッセージを出す（取り込み画面は勝手に開かない）。
@@ -212,7 +230,7 @@ AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`
 | 何を | どこで | 理由・メモ |
 |------|--------|------------|
 | Nix と Homebrew のインストール、このリポジトリを `~/.config/nix-darwin` に置く | ターミナル | rebuild の前提（README の「新しい Mac にセットアップする」） |
-| sketchybar に **フルディスクアクセス** | プライバシーとセキュリティ > フルディスクアクセス | 通知一覧・集中モードの状態を読む |
+| protected-reader に **フルディスクアクセス** | プライバシーとセキュリティ > フルディスクアクセス で「＋」→ ⌘⇧G でパスを入力 | 通知一覧・集中モードの状態を読む。パスは `launchctl print gui/$(id -u)/org.nixos.protected-reader \| grep program`。**sketchybar には与えない**（与えていたら外す） |
 | sketchybar に **アクセシビリティ** | 同 > アクセシビリティ | 通知センター・ビデオエフェクトを開く、入力ソース切り替え、絵文字 |
 | sketchybar に **Bluetooth**・**カレンダー** | 初回に出る確認で許可 | `blueutil`、`icalBuddy` / `event.js` |
 | menubar-click-guard に **アクセシビリティ** | プライバシーとセキュリティ > アクセシビリティ | パスは `/nix/store/…-menubar-click-guard-1.0/bin/menubar-click-guard`。許可がないと 30 秒ごとに再試行 |
@@ -223,8 +241,24 @@ AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`
 | Blu-ray の `keydb.cfg` | `~/Library/Preferences/aacs/` に置く | FindVUK Online Database から手動ダウンロード |
 | Nix / Homebrew 管理外のアプリ | 各配布元 | 上の「Nix / Homebrew 管理外のアプリ」の表 |
 
-- sketchybar・menubar-click-guard は、パッケージが変わる（nix store のパスが変わる）と許可を付け直す必要がある。
-  古いパスの許可が一覧に残るので、ときどき「プライバシーとセキュリティ」で削除する。
+- sketchybar・menubar-click-guard・protected-reader は、パッケージが変わる（nix store のパスが変わる）と許可を付け直す必要がある。
+  パスが変わるのは、そのプログラム自体か、ビルドに使う道具（`nix flake update` で nixpkgs を更新したときなど）が変わったときだけ。
+  ふだんの設定変更（メニューの中身など）では変わらない。古いパスの許可は一覧に残るので、ときどき削除する。
+- 付け直しが必要かどうかは `sketchybar-doctor` で分かる（動いていない・読めない項目と、その直し方を表示）。
+- 許可を付け直さずに済ませるには、決まった場所へのコピーと、自分で作った証明書での署名が必要（未対応。手間に対して効果が小さいため）。
+
+### macOS の更新で壊れうる箇所
+
+sketchybar は macOS が公開していない仕組みに頼っている。macOS を更新したら `sketchybar-doctor` を実行する。
+
+| 頼っているもの | 使う場所 | 壊れたときの症状 |
+|----------------|----------|------------------|
+| 通知センターのデータベースの形式（`record` / `app` テーブル、`req` の `titl` / `subt` / `body`） | pkgs/protected-reader | 通知一覧が「読めない」 |
+| 集中モードの状態ファイル `Assertions.json` の形式 | pkgs/protected-reader | 集中モードが常に ○ |
+| コントロールセンターの項目の識別子（`com.apple.menuextra.clock` / `.controlcenter` / `.audiovideo`） | action.nix・plugins/camera.nix | 通知センター・ビデオエフェクトが開かない、カメラが出ない |
+| sketchybar 本体のソース（`bar_manager.c` の 1 行） | default.nix のパッチ | ビルドが失敗する（`--replace-fail`） |
+| 画面上端のクリックの扱い | pkgs/menubar-click-guard | 上端のクリックが標準メニューバーに抜ける |
+| ショートカットの「集中モードを設定」アクションの形式 | pkgs/focus-shortcuts/gen.py | 取り込んだショートカットが動かない |
 
 ---
 

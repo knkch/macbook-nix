@@ -32,7 +32,7 @@
   # ── System Packages ─────────────────────────────────────────────────────── #
   # システム全体・ネットワーク寄りの CLI のみ
   # ユーザー開発ツールは home/packages.nix、GUI アプリは modules/homebrew.nix、
-  # 常駐サービス（sketchybar / jankyborders）は modules/desktop.nix
+  # 常駐サービスは modules/desktop.nix と modules/sketchybar/
   environment.systemPackages = with pkgs; [
     # Network
     wireguard-tools
