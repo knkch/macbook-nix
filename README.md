@@ -167,6 +167,7 @@ Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox
 
 ### 2026-10-29 sketchybar 再有効化
 
+- **menubar-click-guard**: 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ常駐プログラムを追加（要アクセシビリティ）
 - **sketchybar**: 標準メニューバー相当の項目を追加（Apple メニュー、ネットワーク / Wi-Fi、Bluetooth、VPN（Tailscale・出口ノード）、音量スライダーと入出力デバイス、電池、入力ソース、通知一覧（要フルディスクアクセス、すべて消去・件数バッジ）と集中モード（ショートカット経由）、時計の月カレンダーと予定）
 - **Homebrew**: `ical-buddy` を追加（時計メニューの予定表示）
 - **sketchybar**: `topmost=on` で標準メニューバーを覆う。内蔵画面（ノッチ）は AeroSpace の上ギャップを 5 に

@@ -24,7 +24,7 @@ rebuild   # zsh エイリアス
 | `flake.nix` | inputs / outputs。`user` / `host` はここで一元定義し `specialArgs` で各モジュールへ |
 | `modules/system.nix` | nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults（Dock / Spaces / WindowManager 含む）・GC |
 | `modules/homebrew.nix` | Homebrew casks / brews / masApps / VS Code 拡張 / cleanup |
-| `modules/desktop.nix` | 常駐サービス: sketchybar（設定・プラグイン込み）、jankyborders |
+| `modules/desktop.nix` | 常駐サービス: sketchybar（設定・プラグイン込み）、jankyborders、menubar-click-guard |
 | `home/default.nix` | ユーザー情報・dotfiles・imports |
 | `home/packages.nix` | 一般 CLI / インフラ / クラウドツール |
 | `home/security.nix` | セキュリティツール群（`my.security.enable` で一括オン・オフ） |
@@ -33,6 +33,7 @@ rebuild   # zsh エイリアス
 | `home/nixvim.nix` | Neovim（nixvim）全設定 |
 | `home/desktop.nix` | AeroSpace 設定・Ghostty |
 | `home/vscode.nix` | VS Code の表示言語のみ（本体・拡張は Homebrew） |
+| `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
 
 ### 配置の原則
 
@@ -132,6 +133,10 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
   ステータス（macOS のメニューバーアイコンと同じ）→ PopUpMenu - 1 に上げ、バーの端のクリックが隠れた標準メニューバーに抜けないようにしている。
   バーの高さは標準メニューバーと同じ 33（32 だと下端 1px が標準メニューバーに当たる）。
   バイナリが変わると macOS の許可（アクセシビリティ等）を付け直す必要がある。
+- それでも画面の一番上の行と上の角のクリックは macOS が標準メニューバーに渡すため、`menubar-click-guard`
+  （launchd ユーザーエージェント）がクリック位置を上端から 3px・角から 12px 内側に移す。
+  アクセシビリティの許可が必要（`/nix/store/…-menubar-click-guard-1.0/bin/menubar-click-guard`）。
+  許可がないと起動に失敗して 30 秒ごとに再試行する。ログ: `/tmp/menubar-click-guard.log`。
 - メニューのクリックできる行は、マウスが乗るとハイライト（`hover` スクリプト、`mouse.entered` / `mouse.exited`）。
   ハイライトが行全体に付くよう、クリックできる行の幅を揃える。幅は**表示する前に**文字数から見積もって決める
   （`estimate` / `apply_widths`。実測: 英数字 1 文字 ≒ 7.5、全角 ≒ 12.5）。表示後に幅を変えるとメニューが左右にずれるため。
