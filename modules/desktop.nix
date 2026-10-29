@@ -129,6 +129,8 @@ let
       emoji)    osascript -e 'tell application "System Events" to key code 49 using {control down, command down}' ;;
       focus-settings)    pane com.apple.Focus-Settings.extension ;;
       shortcuts-app)     open -a Shortcuts ;;
+      open-app)          open -b "$2" ;; # 通知をクリック → そのアプリを開く
+      fda-settings)      open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" ;;
 
       # 集中モード: ショートカットを実行（引数は一覧での番号）
       focus-run) shortcuts run "$(focus_shortcuts | sed -n "$2p")" ;;
@@ -344,13 +346,85 @@ let
   '');
 
   # ── 通知 ──────────────────────────────────────────────────────────────── #
+  # 通知の一覧: 通知センターのデータベースを読み、1 行 1 通知で出力する
+  #   出力: <Bundle ID> US <アプリ名> US <日時> US <タイトル> US <本文>（US = \x1f）
+  #   読めない（フルディスクアクセスがない）ときは "ERROR" だけを出力
+  notifList = pkgs.writeScript "sketchybar-notifications" ''
+    #!${pkgs.python3}/bin/python3
+    import os, sqlite3, plistlib, subprocess, sys
+    from datetime import datetime, timedelta, timezone
+
+    DB = os.path.expanduser("~/Library/Group Containers/group.com.apple.usernoted/db2/db")
+    EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)  # Mac の日時の起点
+    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 15
+
+    try:
+        con = sqlite3.connect("file:" + DB + "?mode=ro", uri=True)
+        rows = con.execute(
+            "SELECT a.identifier, r.data, r.delivered_date FROM record r"
+            " JOIN app a ON a.app_id = r.app_id"
+            " ORDER BY r.delivered_date DESC LIMIT ?", (limit,)).fetchall()
+    except Exception:
+        print("ERROR")
+        sys.exit(0)
+
+    names = {}
+
+    def app_name(bid):
+        if bid not in names:
+            name = bid.rsplit(".", 1)[-1]
+            try:
+                path = subprocess.run(
+                    ["mdfind", "kMDItemCFBundleIdentifier == '" + bid + "'"],
+                    capture_output=True, text=True, timeout=2).stdout.split("\n")[0]
+                if path.endswith(".app"):
+                    name = os.path.basename(path)[:-4]
+            except Exception:
+                pass
+            names[bid] = name
+        return names[bid]
+
+    def clean(s):
+        return " ".join(str(s or "").split())
+
+    for bid, data, delivered in rows:
+        try:
+            req = plistlib.loads(data).get("req", {})
+        except Exception:
+            req = {}
+        when = (EPOCH + timedelta(seconds=delivered or 0)).astimezone()
+        title = clean(req.get("titl")) or clean(req.get("subt"))
+        print("\x1f".join([bid, app_name(bid), when.strftime("%m/%d %H:%M"), title, clean(req.get("body"))]))
+  '';
+
   # 通知の履歴・集中モードの状態は macOS が保護していて直接読めない。
   # 集中モードは「ショートカット」アプリ経由で扱う:
   #   - 「集中モード: 〜」という名前のショートカットをメニューに並べ、クリックで実行
   #   - 「集中モード状態」という名前のショートカット（現在の集中モードを取得して出力）があれば現在の状態を表示
   notify = plugin "notify" (header + ''
+    # 最新の通知（クリックでそのアプリを開く）
+    notification_list() {
+      local p=notify i=0 bid app when title body text
+      menu_header $p h.list "通知（最新 15 件）"
+      while IFS=$'\x1f' read -r bid app when title body; do
+        if [ "$bid" = ERROR ]; then
+          menu_item $p n.err "󰌾" "一覧を表示するには sketchybar にフルディスクアクセスを許可してください"
+          menu_item $p n.fda "󰒓"  "フルディスクアクセスの設定…" fda-settings
+          return
+        fi
+        i=$((i + 1))
+        text="$app"
+        [ -n "$title" ] && text="$text: $title"
+        [ -n "$body" ] && text="$text — $body"
+        menu_item $p "n.$i" "󰂚" "$when  $text" open-app "$bid"
+        sketchybar --set "$p.dyn.n.$i" label.max_chars=64
+      done < <(${notifList} 15)
+      [ "$i" -eq 0 ] && menu_item $p n.none "󰂚" "通知はありません"
+    }
+
     build_menu() {
       local p=notify i=0 sc cur tmp
+      notification_list
       menu_item $p nc "󰂚" "通知センターを開く" nc-open
 
       menu_header $p h.focus "集中モード"
@@ -635,7 +709,7 @@ in
   services.jankyborders = {
     enable         = true;
     style          = "round";
-    width          = 5.0;
+    width          = 2.0; # AeroSpace の隙間 3 に収まる太さ
     hidpi          = true;
     active_color   = "0xc0ff00f2";
     inactive_color = "0xff0080ff";
@@ -646,10 +720,21 @@ in
   # 各項目はクリックでメニューを開く（中身は modules/desktop.nix の各プラグインの build_menu）
   services.sketchybar = {
     enable = true;
+    # topmost=on のバーは macOS のメニューバーアイコン（時計・コントロールセンター等）と同じ
+    # ステータスレベルに置かれ、隠れた標準メニューバーが出てくると端のクリックがそちらに抜ける。
+    # バーをポップアップ（PopUpMenu レベル）のすぐ下まで上げて、常に手前でクリックを受けるようにする。
+    package = pkgs.sketchybar.overrideAttrs (old: {
+      postPatch = (old.postPatch or "") + ''
+        substituteInPlace src/bar_manager.c \
+          --replace-fail "bar_manager->window_level = kCGStatusWindowLevel;" \
+                         "bar_manager->window_level = kCGPopUpMenuWindowLevel - 1;"
+      '';
+    });
     config = ''
       # topmost=on: マウスを上端に寄せて出てくる macOS のメニューバーをバーで覆い隠す
-      sketchybar --bar position=top height=32 blur_radius=30 color=0xcc1a1b26 \
-        padding_left=8 padding_right=8 topmost=on
+      # height=33: 標準メニューバーと同じ高さ（低いと下端の 1px にクリックが抜ける）
+      sketchybar --bar position=top height=33 blur_radius=30 color=0xcc1a1b26 \
+        padding_left=3 padding_right=3 topmost=on
 
       sketchybar --default \
         icon.font="Hack Nerd Font:Bold:15.0" \
@@ -662,7 +747,7 @@ in
       # メニュー（ポップアップ）の見た目
       POPUP="popup.background.color=0xf01a1b26 popup.background.corner_radius=8 \
         popup.background.border_width=1 popup.background.border_color=0xff414868 \
-        popup.blur_radius=30 popup.y_offset=4"
+        popup.blur_radius=30 popup.y_offset=3"
       MENU="mouse.clicked mouse.exited.global"
 
       # ── 左: Apple メニュー ──
