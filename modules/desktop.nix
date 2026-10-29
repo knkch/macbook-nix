@@ -148,15 +148,17 @@ let
         ARGS+=(--set "clock.dyn.cal.w$i" background.image="''${CAL_IMG[$((i + 1))]}" slider.percentage=0)
       done
     }
-    # 選んだ日の予定を、用意してある行（見出し + CAL_EVENT_ROWS 行）に入れる指定を ARGS に足す
+    # 選んだ日の予定を、用意してある行（見出し + CAL_EVENT_ROWS 行）に入れる指定を ARGS に足す。
+    # 各行の予定の ID などを $CAL_DIR/events に保存（行を押すと編集・削除できる）
     cal_event_args() {
       local sel line i lines=() LC_ALL=en_US.UTF-8
       sel="$(cat "$CAL_SEL" 2>/dev/null)"; [ -n "$sel" ] || sel="$(date +%F)"
       ARGS+=(--set clock.dyn.h.ev label="$(date -j -f %Y-%m-%d "$sel" '+%-m月%-d日' 2>/dev/null)（$(weekday_ja "$sel")）の予定")
-      while IFS= read -r line; do
+      mkdir -p "$CAL_DIR"
+      ${calEvent} list "$sel" 2>/dev/null | grep . > "$CAL_DIR/events"
+      while IFS=$'\x1f' read -r _ line _; do
         [ -n "$line" ] && lines+=("$line")
-      done < <(${icalBuddy} -nc -nrd -b "" -iep "datetime,title" -po "datetime,title" -ps "|  |" \
-                 -df "" -tf "%H:%M" "eventsFrom:$sel" "to:$sel" 2>/dev/null)
+      done < "$CAL_DIR/events"
       [ ''${#lines[@]} -eq 0 ] && lines=("予定はありません")
       for i in $(seq 1 "$CAL_EVENT_ROWS"); do
         line="''${lines[$((i - 1))]}"
@@ -258,21 +260,23 @@ let
     # メニュー内の操作（カレンダーの月送り）以外はメニューを閉じる
     case "$1" in cal-* | notify-clear) ;; *) close_all ;; esac
 
-    # 入力画面（キャンセルなら失敗を返す）: ask <説明> [初期値]
+    # 入力画面の部品（どれもキャンセルなら失敗を返す）。画面のタイトルは DIALOG_TITLE
+    DIALOG_TITLE="予定"
+    # ask <説明> [初期値]: 文字を入力
     ask() {
-      osascript - "$1" "''${2:-}" <<'AS' 2>/dev/null
+      osascript - "$1" "''${2:-}" "$DIALOG_TITLE" <<'AS' 2>/dev/null
     on run argv
-      text returned of (display dialog (item 1 of argv) default answer (item 2 of argv) with title "予定を追加" buttons {"キャンセル", "OK"} default button "OK" cancel button "キャンセル")
+      text returned of (display dialog (item 1 of argv) default answer (item 2 of argv) with title (item 3 of argv) buttons {"キャンセル", "OK"} default button "OK" cancel button "キャンセル")
     end run
     AS
     }
-    # 一覧から選ぶ（キャンセルなら失敗を返す）: choose <説明> <改行区切りの候補（最初が初期値）>
+    # choose <説明> <改行区切りの候補（最初が初期値）>: 一覧から選ぶ
     choose() {
       local r
-      r="$(osascript - "$1" "$2" <<'AS' 2>/dev/null
+      r="$(osascript - "$1" "$2" "$DIALOG_TITLE" <<'AS' 2>/dev/null
     on run argv
-      set calNames to paragraphs of (item 2 of argv) -- items は予約語なので使えない
-      set r to choose from list calNames with title "予定を追加" with prompt (item 1 of argv) default items {item 1 of calNames}
+      set choices to paragraphs of (item 2 of argv) -- items は予約語なので使えない
+      set r to choose from list choices with title (item 3 of argv) with prompt (item 1 of argv) default items {item 1 of choices}
       if r is false then return ""
       return item 1 of r
     end run
@@ -280,6 +284,56 @@ let
     )"
       [ -n "$r" ] && echo "$r"
     }
+    # confirm <説明> <実行ボタン>: 確認（実行ボタンなら成功）
+    confirm() {
+      osascript - "$1" "$2" "$DIALOG_TITLE" <<'AS' >/dev/null 2>&1
+    on run argv
+      display dialog (item 1 of argv) with title (item 3 of argv) buttons {"キャンセル", item 2 of argv} default button "キャンセル" cancel button "キャンセル"
+    end run
+    AS
+    }
+    # notify_msg <タイトル> <本文>: macOS の通知
+    notify_msg() {
+      osascript - "$1" "$2" <<'AS' >/dev/null 2>&1
+    on run argv
+      display notification (item 2 of argv) with title (item 1 of argv)
+    end run
+    AS
+    }
+
+    # pick_time <見出し> [開始 終了]: プルダウンで時間を選んで START / END に入れる（終日 = 両方空）。
+    # 編集で終日の予定なら pick_time <見出し> "" "" のように空を渡すと「終日」にチェックが入った状態で開く
+    pick_time() {
+      local r
+      r="$(${calTimePicker} "$@" 2>/dev/null)"
+      case "$r" in
+        allday) START=""; END="" ;;
+        *:*" "*:*) START="''${r% *}"; END="''${r#* }" ;;
+        *) return 1 ;; # キャンセル
+      esac
+    }
+    # ask_alarm <開始時刻（空なら終日）> [今の通知の分（空 = なし）]: 通知のタイミングを尋ねて
+    # ALARM（分。空 = なし）に入れる。今の設定（追加のときは 10 分前 / 当日 9:00）を初期値にする
+    ask_alarm() {
+      local cur list label
+      if [ -n "$1" ]; then
+        case "''${2-new}" in
+          new) cur="10分前" ;; "") cur="なし" ;; 0) cur="開始時" ;; 60) cur="1時間前" ;; *) cur="''${2}分前" ;;
+        esac
+        list="$(printf '%s\n' "$cur" 10分前 なし 開始時 5分前 30分前 1時間前 | awk '!seen[$0]++')"
+      else
+        case "''${2-new}" in "") cur="なし" ;; *) cur="当日 9:00" ;; esac
+        list="$(printf '%s\n' "$cur" "当日 9:00" なし | awk '!seen[$0]++')"
+      fi
+      label="$(choose "通知" "$list")" || return 1
+      case "$label" in
+        なし) ALARM="" ;; 開始時 | "当日 9:00") ALARM=0 ;; 1時間前) ALARM=60 ;;
+        *分前) ALARM="''${label%分前}" ;; *) ALARM=0 ;;
+      esac
+    }
+    # カレンダーの画像と予定の行を更新
+    cal_refresh() { ARGS=(); cal_render && cal_image_args; cal_event_args; sketchybar "''${ARGS[@]}"; }
+
     pane() { open "x-apple.systempreferences:$1"; }
     refresh() { sleep "$1"; sketchybar --update; }
 
@@ -352,54 +406,44 @@ let
         echo "$off" > "$CAL_STATE"
         ARGS=(); cal_render && cal_image_args
         [ ''${#ARGS[@]} -gt 0 ] && sketchybar "''${ARGS[@]}" ;;
-      # 選んだ日に予定を追加: タイトル → 時間（空欄なら終日）→ カレンダー の順に尋ねて EventKit で登録
+      # 選んだ日に予定を追加: タイトル → 時間（プルダウン / 終日）→ カレンダー → 通知 の順に尋ねて EventKit で登録
       cal-add)
+        DIALOG_TITLE="予定を追加"
         sel="$(cat "$CAL_SEL" 2>/dev/null)"; [ -n "$sel" ] || sel="$(date +%F)"
         day="$(date -j -f %Y-%m-%d "$sel" '+%-m月%-d日' 2>/dev/null)（$(weekday_ja "$sel")）"
         title="$(ask "$day に追加する予定のタイトル")" || exit 0
         [ -n "$title" ] || exit 0
-        msg="時間（例: 10:00-11:30、10:00、空欄なら終日）"
-        while :; do
-          t="$(ask "$msg")" || exit 0
-          t="''${t//：/:}"; t="''${t//〜/-}"; t="''${t//～/-}"; t="''${t//~/-}"; t="''${t// /}"; t="''${t//　/}"
-          zen=(０ １ ２ ３ ４ ５ ６ ７ ８ ９); for n in 0 1 2 3 4 5 6 7 8 9; do t="''${t//''${zen[$n]}/$n}"; done # 全角の数字を半角に
-          if [ -z "$t" ]; then start=""; end=""; break; fi
-          if [[ "$t" =~ ^([0-9]{1,2})(:([0-9]{2}))?(-([0-9]{1,2})(:([0-9]{2}))?)?$ ]]; then
-            start="$(printf '%d:%02d' "$((10#''${BASH_REMATCH[1]}))" "$((10#''${BASH_REMATCH[3]:-0}))")"
-            end=""
-            [ -n "''${BASH_REMATCH[5]}" ] && end="$(printf '%d:%02d' "$((10#''${BASH_REMATCH[5]}))" "$((10#''${BASH_REMATCH[7]:-0}))")"
-            break
-          fi
-          msg="時間の形が読めませんでした。例: 10:00-11:30、10:00、空欄なら終日"
-        done
+        pick_time "$day の時間" || exit 0
         cals="$(${calEvent} calendars 2>/dev/null)"
         if [ "$(printf '%s\n' "$cals" | grep -c .)" -gt 1 ]; then
           cal="$(choose "登録するカレンダー" "$cals")" || exit 0
         else
           cal="$cals"
         fi
-        # 通知のタイミング（終日の予定は当日の朝 9 時）
-        if [ -n "$start" ]; then
-          alarm="$(choose "通知" "$(printf '%s\n' 10分前 なし 開始時 5分前 30分前 1時間前)")" || exit 0
+        ask_alarm "$START" || exit 0
+        result="$(${calEvent} add "$sel" "$title" "$START" "$END" "$cal" "$ALARM" 2>&1)"
+        if [ "$result" = ok ]; then cal_refresh; else notify_msg "予定を追加できませんでした" "$result"; fi ;;
+
+      # 予定の行を押したとき（引数: 行の番号）: 編集（タイトル・時間・通知）か削除
+      cal-edit)
+        DIALOG_TITLE="予定"
+        IFS=$'\x1f' read -r id label editable < <(sed -n "$2p" "$CAL_DIR/events" 2>/dev/null)
+        [ -n "$id" ] || exit 0
+        if [ "$editable" != 1 ]; then notify_msg "変更できない予定です" "$label（祝日など、読み取り専用のカレンダー）"; exit 0; fi
+        what="$(choose "$label" "$(printf '%s\n' 編集… 削除)")" || exit 0
+        if [ "$what" = 削除 ]; then
+          confirm "「$label」を削除しますか？" 削除 || exit 0
+          result="$(${calEvent} delete "$id" 2>&1)"
         else
-          alarm="$(choose "通知" "$(printf '%s\n' '当日 9:00' なし)")" || exit 0
+          DIALOG_TITLE="予定を編集"
+          IFS=$'\x1f' read -r title day start end alarm cal < <(${calEvent} get "$id" 2>/dev/null)
+          title="$(ask "タイトル" "$title")" || exit 0
+          [ -n "$title" ] || exit 0
+          pick_time "$title の時間" "$start" "$end" || exit 0
+          ask_alarm "$START" "$alarm" || exit 0
+          result="$(${calEvent} update "$id" "$title" "$START" "$END" "$ALARM" 2>&1)"
         fi
-        case "$alarm" in
-          なし) alarm="" ;; 開始時) alarm=0 ;; 5分前) alarm=5 ;; 10分前) alarm=10 ;;
-          30分前) alarm=30 ;; 1時間前) alarm=60 ;; *) alarm=0 ;;
-        esac
-        result="$(${calEvent} add "$sel" "$title" "$start" "$end" "$cal" "$alarm" 2>&1)"
-        if [ "$result" = ok ]; then
-          ARGS=(); cal_render && cal_image_args
-          cal_event_args
-          sketchybar "''${ARGS[@]}"
-        else
-          osascript - "$result" <<'AS' >/dev/null 2>&1
-    on run argv
-      display notification (item 1 of argv) with title "予定を追加できませんでした"
-    end run
-    AS
-        fi ;;
+        if [ "$result" = ok ]; then cal_refresh; else notify_msg "予定を変更できませんでした" "$result"; fi ;;
 
       # 日付を選ぶ（引数: 週 1〜6 と曜日の列 0〜6）→ 輪を付け直して、その日の予定を表示
       cal-select)
@@ -547,6 +591,8 @@ let
 
   # 予定の追加など（pkgs/calendar/event.js。EventKit を JXA で呼ぶ。カレンダーアプリは開かない）
   calEvent = "osascript -l JavaScript ${../pkgs/calendar/event.js}";
+  # 時間を選ぶ画面（開始・終了のプルダウン + 終日。pkgs/calendar/timepicker.js）
+  calTimePicker = "osascript -l JavaScript ${../pkgs/calendar/timepicker.js}";
 
   # カレンダーを画像で描く（pkgs/calendar/render.py。日曜・祝日は赤、土曜は青、今日は丸、予定は点）
   calRender = "${pkgs.python3.withPackages (ps: [ ps.pillow ])}/bin/python3 ${../pkgs/calendar/render.py}";
@@ -590,7 +636,7 @@ let
     events() {
       local p=clock i
       menu_header $p h.ev "予定"
-      for i in $(seq 1 "$CAL_EVENT_ROWS"); do menu_item $p "ev.$i" "󰃭" ""; done
+      for i in $(seq 1 "$CAL_EVENT_ROWS"); do menu_item $p "ev.$i" "󰃭" "" cal-edit "$i"; done # 押すと編集・削除
       menu_item $p ev.add "󰐕" "予定を追加…" cal-add
       ARGS=(); cal_event_args; BATCH+=("''${ARGS[@]}")
     }

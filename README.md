@@ -28,7 +28,11 @@ rebuild
 ├── modules/
 │   ├── system.nix         # nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults
 │   ├── homebrew.nix       # casks / brews / masApps / VS Code 拡張 / cleanup
-│   └── desktop.nix        # sketchybar・jankyborders（launchd サービス）
+│   └── desktop.nix        # sketchybar（設定・プラグイン込み）・jankyborders・menubar-click-guard
+├── pkgs/
+│   ├── menubar-click-guard/  # 画面上端のクリックを sketchybar に届ける常駐プログラム（C）
+│   ├── calendar/          # 時計メニューのカレンダー画像（render.py）・予定の追加（event.js）
+│   └── runcat/            # CPU で走る猫のドット絵
 └── home/
     ├── default.nix        # ユーザー情報・dotfiles・imports
     ├── packages.nix       # CLI / インフラ / クラウド
@@ -37,6 +41,8 @@ rebuild
     ├── git.nix            # git + delta
     ├── nixvim.nix         # Neovim（nixvim）
     ├── desktop.nix        # AeroSpace・Ghostty
+    ├── music.nix          # mpd・rmpc・mpc
+    ├── rmpc/              # rmpc の設定とテーマ（tokyonight）
     └── vscode.nix         # VS Code 表示言語
 ```
 
@@ -49,7 +55,7 @@ rebuild
 | GUI アプリ・Claude Code | `homebrew.casks` (modules/homebrew.nix) |
 | App Store アプリ | `homebrew.masApps` (modules/homebrew.nix) |
 | VS Code 本体・拡張 | cask + Brewfile `vscode` 行 (modules/homebrew.nix) |
-| 常駐サービス | `services.sketchybar` / `services.jankyborders` (modules/desktop.nix) |
+| 常駐サービス | `services.sketchybar` / `services.jankyborders` / menubar-click-guard (modules/desktop.nix)、mpd (home/music.nix) |
 | VS Code 設定 (`settings.json`) | Nix 管理外・VS Code が直接書き込み |
 
 > Brewfile にないアプリは rebuild 時に削除される（`brew bundle cleanup`）。
@@ -79,12 +85,14 @@ rebuild
 | ツール | 管理 | 概要 |
 |--------|------|------|
 | AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
-| Sketchybar | `services.sketchybar` | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: カメラ（使用中のみ）・VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー） |
+| Sketchybar | `services.sketchybar`（パッチ版） | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ / ノッチの左: 再生中の曲・右: CPU で走る猫 / 右: カメラ（使用中のみ）・VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー。詳細は CLAUDE.md） |
+| menubar-click-guard | launchd ユーザーエージェント | 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ（要アクセシビリティ） |
 | jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
 | Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
 | macSKK | cask + dotfile | 日本語 IME（SKK-JISYO.L） |
 
-- macOS のメニューバーは常に表示し、sketchybar で上から覆う（通知バナーがバーの下に出るように）。AeroSpace の隙間は 3。
+- macOS のメニューバーは常に表示し、sketchybar（同じ高さ 33・不透明）で上から覆う（通知バナーがバーの下に出るように）。AeroSpace の隙間は 3。
+- 時計メニュー: 画像で描く月カレンダー（祝日・予定の件数バッジ）、日付を押すとその日の予定、予定の追加・編集・削除（通知付き。Google / Outlook はインターネットアカウントに追加すると同期）。
 - 「ディスプレイごとに個別の操作スペース」はオフ（AeroSpace 推奨、反映にはログアウトが必要）。
 - Dock は自動非表示、操作スペースの自動並べ替えはオフ、Mission Control はアプリごとにグループ化。
 - ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準のウィンドウタイル（画面端ドラッグ / Option+ドラッグ）はオフ（AeroSpace と競合するため）。
@@ -113,6 +121,18 @@ rebuild
 | `cat` | bat |
 | `lg` | lazygit |
 | `vlc-bd` | Blu-ray 再生用に OpenJDK 17 を指定して VLC を起動 |
+| `music` | rmpc（音楽の操作画面）を開く |
+
+### 音楽（`home/music.nix`）
+
+| ツール | 管理 | 概要 |
+|--------|------|------|
+| mpd | `services.mpd` | 再生の本体。`~/Music/MyLibrary` を CoreAudio で再生。ログイン時に起動 |
+| rmpc | `programs.rmpc` | TUI（`music`）。アルバムアート表示（Kitty 方式）・tokyonight テーマ |
+| mpc | `home.packages` | `mpc toggle` / `next` / `prev` / `update` |
+| Rigelian | masApps | GUI（同じ mpd を操作）。sketchybar の曲メニューから開く |
+
+> 曲を追加したら `mpc update`。じっくり聴くときは JRiver Media Center（ビットパーフェクト・サンプリングレート自動切り替え）。
 
 ### 開発
 
@@ -153,7 +173,7 @@ rebuild
 | ツール | 概要 |
 |--------|------|
 | WireGuard / Tailscale | VPN（App Store 版） |
-| Slack / Windows App / Microsoft Excel / Brother iPrint&Scan | App Store 版 |
+| Slack / Windows App / Microsoft Excel / Brother iPrint&Scan / Rigelian | App Store 版 |
 
 ### Nix / Homebrew 管理外のアプリ
 
@@ -165,13 +185,14 @@ Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox
 
 ## 変更履歴
 
-### 2026-10-29 sketchybar 再有効化
+### 2026-10-29 sketchybar の作り込み・音楽
 
-- **menubar-click-guard**: 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ常駐プログラムを追加（要アクセシビリティ）
-- **sketchybar**: 標準メニューバー相当の項目を追加（Apple メニュー、ネットワーク / Wi-Fi、Bluetooth、VPN（Tailscale・出口ノード）、音量スライダーと入出力デバイス、電池、入力ソース、通知一覧（要フルディスクアクセス、すべて消去・件数バッジ）と集中モード（ショートカット経由）、時計の月カレンダーと予定）
-- **Homebrew**: `ical-buddy` を追加（時計メニューの予定表示）
-- **sketchybar**: `topmost=on` で標準メニューバーを覆う。内蔵画面（ノッチ）は AeroSpace の上ギャップを 5 に
-- **sketchybar**: 再び有効化。メニューバーを自動非表示に、AeroSpace の上ギャップを 5 → 37 に
+- **sketchybar**: 再び有効化。標準メニューバー相当の項目（Apple メニュー、ネットワーク / Wi-Fi の周囲一覧、Bluetooth、VPN、音量スライダー、電池と電力モード、入力ソース、カメラ、通知一覧と集中モード）を追加。メニューは行のハイライト付き・すりガラス風
+- **sketchybar**: 本体をパッチ版にしてメニューバーより手前に表示。高さ 33・不透明・ノッチ幅 186。標準メニューバーは常に表示して覆う（通知がバーの下に出る）
+- **menubar-click-guard**: 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ常駐プログラムを追加
+- **時計メニュー**: カレンダーを画像で描画（祝日・予定の件数バッジ・日付の選択）、予定の追加・編集・削除（通知付き）、カレンダーのアカウント設定への入口。Homebrew に `ical-buddy`・`font-hackgen`
+- **音楽**: mpd + rmpc + mpc（`home/music.nix`）、rmpc のテーマ、Rigelian（App Store）。sketchybar のノッチの左に再生中の曲、右に CPU で走る猫
+- **AeroSpace**: 隙間 3、通常のウィンドウは必ずタイル、フローティングは小さな一時ウィンドウだけ
 - **Brother LOGINserver**（Intel 専用）: Nix 管理外。`/Library/LaunchAgents` から plist を外して自動起動を停止
 
 ### 2026-10-29 AeroSpace 向け macOS 設定
