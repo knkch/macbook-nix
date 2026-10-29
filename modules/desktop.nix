@@ -56,7 +56,8 @@ let
   # 項目名は「<親>.dyn.<名前>」。クリック時の操作は $ACTION（action スクリプト）に渡す。
   lib = pkgs.writeText "sketchybar-lib.sh" ''
     FG=0xffc0caf5; SUB=0xff9aa5ce; DIM=0xff565f89; ACCENT=0xff7aa2f7; GREEN=0xff9ece6a; RED=0xfff7768e
-    POPUPS="apple clock notify input battery volume bluetooth wifi vpn camera"
+    POPUPS="apple clock notify input battery volume bluetooth wifi vpn camera music"
+    MPC=${pkgs.mpc}/bin/mpc
     MONO="HackGen:Regular:13.0" # 全角 = 英数字 2 文字分の等幅（カレンダーの列を揃える）
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
     NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"
@@ -302,6 +303,20 @@ let
       vpn-settings)      pane com.apple.NetworkExtensionSettingsUI.NESettingsUIExtension ;;
       sound-settings)    pane com.apple.Sound-Settings.extension ;;
       battery-settings)  pane com.apple.Battery-Settings.extension ;;
+
+      # 音楽（mpd）
+      music-toggle) $MPC toggle >/dev/null ;;
+      music-prev)   $MPC prev >/dev/null ;;
+      music-next)   $MPC next >/dev/null ;;
+      music-stop)   $MPC stop >/dev/null ;;
+      # 今の曲のあいだだけバーから隠す（隠した曲を記録し、music_update で表示を更新）
+      music-hide)
+        $MPC current -f '%file%' > "''${TMPDIR:-/tmp}/sketchybar-music-hidden" 2>/dev/null
+        sketchybar --trigger music_update ;;
+      # cmux の新しいワークスペースで rmpc を開く
+      music-open)
+        open -a cmux
+        /Applications/cmux.app/Contents/Resources/bin/cmux new-workspace --name music --command rmpc --focus true >/dev/null 2>&1 ;;
       # 電力モードの変更（引数: b / c と 0 / 1 / 2）。管理者のパスワードを macOS の画面で尋ねる
       power-mode)
         case "$2$3" in b0|b1|b2|c0|c1|c2) ;; *) exit 0 ;; esac
@@ -1009,6 +1024,54 @@ let
     sketchybar --set "$NAME" icon="$icon" icon.color="$color" label.drawing=off
   '');
 
+  # ── 再生中の曲（mpd）。ノッチのすぐ左 ─────────────────────────────────────── #
+  # mpc idle で再生状態の変化を待ち、変わったら music_update を送る（ループは 1 本だけ）。
+  # 停止中・mpd が動いていないときは項目を隠す
+  music = plugin "music" (header + ''
+    pidfile="''${TMPDIR:-/tmp}/sketchybar-music.pid"
+    if ! { [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; }; then
+      (
+        while sketchybar --query music >/dev/null 2>&1; do
+          $MPC idle player options >/dev/null 2>&1 || sleep 5 # mpd が止まっていたら 5 秒ごとに再試行
+          sketchybar --trigger music_update
+        done
+      ) >/dev/null 2>&1 &
+      echo $! > "$pidfile"
+      disown
+    fi
+
+    build_menu() {
+      local p=music
+      menu_header $p h.song "$($MPC current -f '%album%' 2>/dev/null)"
+      menu_item $p title  "󰝚" "$($MPC current -f '%title%' 2>/dev/null)"
+      menu_item $p artist "" "$($MPC current -f '%artist%' 2>/dev/null)"
+      menu_item $p prev   "󰒮" "前の曲"            music-prev
+      if [ "$($MPC status '%state%' 2>/dev/null)" = playing ]; then
+        menu_item $p toggle "󰏤" "一時停止"         music-toggle
+      else
+        menu_item $p toggle "󰐊" "再生"             music-toggle
+      fi
+      menu_item $p next   "󰒭" "次の曲"            music-next
+      menu_item $p open   "󰏌" "music（rmpc）を開く" music-open
+      menu_item $p stop   "󰓛" "停止"                      music-stop
+      menu_item $p hide   "󰈉" "バーから隠す（次の曲で再表示）" music-hide
+    }
+    handle_popup
+
+    state="$($MPC status '%state%' 2>/dev/null)"
+    # 「バーから隠す」を選んだ曲のあいだは隠す（曲が変わったら表示に戻る）
+    hidden="$(cat "''${TMPDIR:-/tmp}/sketchybar-music-hidden" 2>/dev/null)"
+    [ -n "$hidden" ] && [ "$hidden" = "$($MPC current -f '%file%' 2>/dev/null)" ] && state=hidden
+    case "$state" in
+      playing | paused)
+        if [ "$state" = playing ]; then icon="󰝚"; color=$FG; else icon="󰏤"; color=$SUB; fi
+        sketchybar --set "$NAME" drawing=on icon="$icon" icon.color="$color" label.color="$color" \
+          label="$($MPC current -f '[%artist% - ]%title%|%file%' 2>/dev/null)" ;;
+      *)
+        sketchybar --set "$NAME" drawing=off popup.drawing=off ;;
+    esac
+  '');
+
   # ── CPU に合わせて走る猫（RunCat 風・絵はオリジナル）。ノッチのすぐ右 ────── #
   # 使用率を約 1 秒ごとに測り、コマの間隔を 0.2 秒（暇）〜 0.03 秒（全開）で変える。右に使用率を表示
   runcatFrames = pkgs.callPackage ../pkgs/runcat { };
@@ -1232,6 +1295,13 @@ in
       sketchybar --add item volume right \
         --subscribe volume volume_change mouse.scrolled $MENU \
         --set volume script="${volume}" popup.align=right $POPUP
+
+      # 再生中の曲（ノッチのすぐ左。長い曲名は 30 文字まで。停止中は隠れる）
+      sketchybar --add event music_update
+      sketchybar --add item music q \
+        --subscribe music music_update $MENU \
+        --set music drawing=off label.max_chars=30 label.font="Hack Nerd Font:Bold:12.0" \
+          script="${music}" popup.align=center $POPUP
 
       # CPU に合わせて走る猫（ノッチのすぐ右 = position e。88x48 px の絵を 0.3 倍 ≒ 26x14 で表示）
       # 使用率の数字は幅を固定して、桁が変わっても位置がずれないようにする

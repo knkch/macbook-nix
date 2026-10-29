@@ -8,6 +8,7 @@
     ./nixvim.nix
     ./desktop.nix
     ./vscode.nix
+    ./music.nix
   ];
 
   # ── User / Home ─────────────────────────────────────────────────────────── #

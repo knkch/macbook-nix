@@ -33,6 +33,7 @@ rebuild   # zsh エイリアス
 | `home/nixvim.nix` | Neovim（nixvim）全設定 |
 | `home/desktop.nix` | AeroSpace 設定・Ghostty |
 | `home/vscode.nix` | VS Code の表示言語のみ（本体・拡張は Homebrew） |
+| `home/music.nix` | 音楽: mpd（`~/Music/MyLibrary`、CoreAudio、launchd で常駐）・rmpc（TUI、アルバムアート）・mpc。エイリアス `music` = rmpc |
 | `pkgs/calendar/` | sketchybar の時計メニューのカレンダー画像を描く `render.py`（メニューを開くたびに約 0.25 秒）と、予定を追加する `event.js`（JXA + EventKit） |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
@@ -127,6 +128,7 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 | 音量 | スクロールで音量調整 | 出力音量スライダー（右に %）・ミュート・出力デバイス選択、入力音量スライダー（右に %）・入力デバイス選択（`SwitchAudioSource`）、サウンド設定 |
 | 電池 | 残量 | 残量・電源・残り時間、**電力モード**（自動 / 低電力 / 高出力をバッテリー・電源アダプタ別に。`pmset powermode`、変更時に管理者パスワードの画面が出る）、アクティビティモニタ、バッテリー設定 |
 | 入力ソース | あ / A / カ など | 有効な入力ソース一覧（現在のものに印）、次の入力ソースへ（⌃Space を送る）、絵文字と記号、キーボード設定 |
+| 再生中の曲 | ノッチのすぐ左（`position q`）。再生中 / 一時停止中だけ表示 | アルバム・曲名・アーティスト、前の曲 / 再生・一時停止 / 次の曲（`mpc`）、music（rmpc）を cmux の新しいワークスペースで開く。停止（表示も消える）、バーから隠す（その曲のあいだだけ。`$TMPDIR/sketchybar-music-hidden` に曲を記録）。`mpc idle` のループで変化を待つ |
 | CPU で走る猫 | ノッチのすぐ右（`position e`） | RunCat 風（絵はオリジナル、`pkgs/runcat`）。CPU 使用率（`ps` の合計 / コア数）を約 1 秒ごとに測り、コマ間隔 0.2〜0.03 秒で走る速さを変える。右に使用率 |
 | カメラ | 使用中だけ表示（緑） | カメラ一覧（使用中の印）、カメラを使えるアプリ（プライバシー設定） |
 | 通知（右端） | ベル + 赤いバッジ（消去後に届いた件数、10 件以上は 9+） | 最新 15 件の通知一覧（クリックでそのアプリを開く）・すべて消去、通知センターを開く（隠れた標準メニューバーの時計をアクセシビリティ経由でクリック）、集中モード（下記）、集中モード設定、通知設定 |
