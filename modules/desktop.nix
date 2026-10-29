@@ -808,6 +808,7 @@ let
       local p=notify i=0 name
       notification_list
       menu_item $p nc "" "通知センターを開く" nc-open
+      menu_item $p notify "󰒓" "通知設定…" notify-settings
 
       # 集中モード: 1 モード 1 行。オンのモードは ● と緑。押すとオン / オフを切り替える
       menu_header $p h.focus "集中モード（押すとオン / オフ）"
@@ -816,13 +817,11 @@ let
         menu_item $p "focus.$i" "○" "$name" focus-toggle "$i" "$name"
         ARGS=(); focus_row_args "$i" "$name"; BATCH+=("''${ARGS[@]}")
       done < <(focus_modes)
-      if [ "$i" -eq 0 ]; then
-        # 切り替え用のショートカット（名前が「集中モード: 〜 オン / オフ」）がまだない
-        menu_item $p focus.none "" "切り替え用ショートカットがありません"
-        menu_item $p focus.app  "" "ショートカットを開く" shortcuts-app
-      fi
+      # 切り替え用のショートカット（名前が「集中モード: 〜 オン / オフ」）がまだない
+      [ "$i" -eq 0 ] && menu_item $p focus.none "" "切り替え用ショートカットがありません"
+      # 集中モードを増やしたときに、切り替え用のショートカットを作れるように
+      menu_item $p focus.app "" "ショートカットを追加…" shortcuts-app
       menu_item $p focus  "󰒓" "集中モード設定…" focus-settings
-      menu_item $p notify "󰒓" "通知設定…"       notify-settings
     }
     handle_popup
 
