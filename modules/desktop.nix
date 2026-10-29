@@ -61,6 +61,10 @@ let
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
     NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"
     WIFI_SCAN="$HOME/Library/Caches/sketchybar-wifi-scan" # 直近のスキャン結果
+    # カレンダー: 選んだ日（YYYY-MM-DD）・画像の置き場所・予定の行数
+    CAL_SEL="''${TMPDIR:-/tmp}/sketchybar-cal-selected"
+    CAL_DIR="''${TMPDIR:-/tmp}/sketchybar-calendar"
+    CAL_EVENT_ROWS=5
     CAL_STATE="''${TMPDIR:-/tmp}/sketchybar-cal-offset" # カレンダーで表示中の月（今月からのずれ）
 
     wifi_dev() { networksetup -listallhardwareports | awk '/Hardware Port: Wi-Fi/{getline; print $2}'; }
@@ -114,6 +118,53 @@ let
       for row in "''${CLICKABLE_ROWS[@]}"; do BATCH+=(--set "$row" width="$MAX_WIDTH"); done
       for row in "''${CENTER_ROWS[@]}"; do BATCH+=(--set "$row" width="$MAX_WIDTH" align=center); done
       return 0
+    }
+
+    # 曜日（日本語 1 文字）。引数なしなら今日
+    weekday_ja() {
+      local d="''${1:-$(date +%F)}"
+      case "$(date -j -f %Y-%m-%d "$d" +%u 2>/dev/null)" in
+        1) echo 月 ;; 2) echo 火 ;; 3) echo 水 ;; 4) echo 木 ;; 5) echo 金 ;; 6) echo 土 ;; *) echo 日 ;;
+      esac
+    }
+
+    # 表示中の月（CAL_STATE = 今月からのずれ）を画像で描く。
+    # CAL_IMG に 月送り / 曜日 / 1〜6 週目 の画像のパスが入る（$CAL_DIR/dates に各週の日付）
+    cal_render() {
+      local off sign y m
+      off="$(cat "$CAL_STATE" 2>/dev/null || echo 0)"
+      if [ "$off" -ge 0 ]; then sign="+$off"; else sign="$off"; fi
+      read -r y m < <(date -v1d -v"''${sign}m" '+%Y %-m')
+      read -r -a CAL_IMG < <(${calRender} "$y" "$m" "$(cat "$CAL_SEL" 2>/dev/null || echo -)" "$CAL_DIR" 2>/dev/null)
+      [ ''${#CAL_IMG[@]} -eq 8 ]
+    }
+    # 画像を差し替える指定を ARGS に足す（行は作り直さない）
+    cal_image_args() {
+      local i
+      ARGS+=(--set clock.dyn.cal.nav background.image="''${CAL_IMG[0]}" slider.percentage=0
+             --set clock.dyn.cal.head background.image="''${CAL_IMG[1]}")
+      for i in 1 2 3 4 5 6; do
+        ARGS+=(--set "clock.dyn.cal.w$i" background.image="''${CAL_IMG[$((i + 1))]}" slider.percentage=0)
+      done
+    }
+    # 選んだ日の予定を、用意してある行（見出し + CAL_EVENT_ROWS 行）に入れる指定を ARGS に足す
+    cal_event_args() {
+      local sel line i lines=() LC_ALL=en_US.UTF-8
+      sel="$(cat "$CAL_SEL" 2>/dev/null)"; [ -n "$sel" ] || sel="$(date +%F)"
+      ARGS+=(--set clock.dyn.h.ev label="$(date -j -f %Y-%m-%d "$sel" '+%-m月%-d日' 2>/dev/null)（$(weekday_ja "$sel")）の予定")
+      while IFS= read -r line; do
+        [ -n "$line" ] && lines+=("$line")
+      done < <(${icalBuddy} -nc -nrd -b "" -iep "datetime,title" -po "datetime,title" -ps "|  |" \
+                 -df "" -tf "%H:%M" "eventsFrom:$sel" "to:$sel" 2>/dev/null)
+      [ ''${#lines[@]} -eq 0 ] && lines=("予定はありません")
+      for i in $(seq 1 "$CAL_EVENT_ROWS"); do
+        line="''${lines[$((i - 1))]}"
+        if [ "$i" -eq "$CAL_EVENT_ROWS" ] && [ ''${#lines[@]} -gt "$CAL_EVENT_ROWS" ]; then
+          line="ほか $(( ''${#lines[@]} - CAL_EVENT_ROWS + 1 )) 件"
+        fi
+        if [ -n "$line" ]; then ARGS+=(--set "clock.dyn.ev.$i" label="$line" drawing=on)
+        else ARGS+=(--set "clock.dyn.ev.$i" drawing=off); fi
+      done
     }
 
     close_all() {
@@ -205,6 +256,29 @@ let
     . ${lib}
     # メニュー内の操作（カレンダーの月送り）以外はメニューを閉じる
     case "$1" in cal-* | notify-clear) ;; *) close_all ;; esac
+
+    # 入力画面（キャンセルなら失敗を返す）: ask <説明> [初期値]
+    ask() {
+      osascript - "$1" "''${2:-}" <<'AS' 2>/dev/null
+    on run argv
+      text returned of (display dialog (item 1 of argv) default answer (item 2 of argv) with title "予定を追加" buttons {"キャンセル", "OK"} default button "OK" cancel button "キャンセル")
+    end run
+    AS
+    }
+    # 一覧から選ぶ（キャンセルなら失敗を返す）: choose <説明> <改行区切りの候補（最初が初期値）>
+    choose() {
+      local r
+      r="$(osascript - "$1" "$2" <<'AS' 2>/dev/null
+    on run argv
+      set calNames to paragraphs of (item 2 of argv) -- items は予約語なので使えない
+      set r to choose from list calNames with title "予定を追加" with prompt (item 1 of argv) default items {item 1 of calNames}
+      if r is false then return ""
+      return item 1 of r
+    end run
+    AS
+    )"
+      [ -n "$r" ] && echo "$r"
+    }
     pane() { open "x-apple.systempreferences:$1"; }
     refresh() { sleep "$1"; sketchybar --update; }
 
@@ -234,6 +308,7 @@ let
         osascript -e "do shell script \"/usr/bin/pmset -$2 powermode $3\" with administrator privileges" >/dev/null 2>&1
         refresh 0 ;;
       datetime-settings) pane com.apple.Date-Time-Settings.extension ;;
+      internet-accounts) pane com.apple.Internet-Accounts-Settings.extension ;;
       notify-settings)   pane com.apple.Notifications-Settings.extension ;;
       keyboard-settings) pane com.apple.Keyboard-Settings.extension ;;
 
@@ -261,11 +336,65 @@ let
         off="$(cat "$CAL_STATE" 2>/dev/null || echo 0)"
         if [ "$2" = 0 ]; then off=0; else off=$((off + $2)); fi
         echo "$off" > "$CAL_STATE"
-        if [ "$off" -ge 0 ]; then sign="+$off"; else sign="$off"; fi
-        read -r y m < <(date -v1d -v"''${sign}m" '+%Y %-m')
-        read -r nav grid < <(${calRender} "$y" "$m" "''${TMPDIR:-/tmp}/sketchybar-calendar" 2>/dev/null)
-        [ -n "$grid" ] && sketchybar --set clock.dyn.cal.nav background.image="$nav" slider.percentage=0 \
-                                     --set clock.dyn.cal.grid background.image="$grid" ;;
+        ARGS=(); cal_render && cal_image_args
+        [ ''${#ARGS[@]} -gt 0 ] && sketchybar "''${ARGS[@]}" ;;
+      # 選んだ日に予定を追加: タイトル → 時間（空欄なら終日）→ カレンダー の順に尋ねて EventKit で登録
+      cal-add)
+        sel="$(cat "$CAL_SEL" 2>/dev/null)"; [ -n "$sel" ] || sel="$(date +%F)"
+        day="$(date -j -f %Y-%m-%d "$sel" '+%-m月%-d日' 2>/dev/null)（$(weekday_ja "$sel")）"
+        title="$(ask "$day に追加する予定のタイトル")" || exit 0
+        [ -n "$title" ] || exit 0
+        msg="時間（例: 10:00-11:30、10:00、空欄なら終日）"
+        while :; do
+          t="$(ask "$msg")" || exit 0
+          t="''${t//：/:}"; t="''${t//〜/-}"; t="''${t//～/-}"; t="''${t//~/-}"; t="''${t// /}"; t="''${t//　/}"
+          zen=(０ １ ２ ３ ４ ５ ６ ７ ８ ９); for n in 0 1 2 3 4 5 6 7 8 9; do t="''${t//''${zen[$n]}/$n}"; done # 全角の数字を半角に
+          if [ -z "$t" ]; then start=""; end=""; break; fi
+          if [[ "$t" =~ ^([0-9]{1,2})(:([0-9]{2}))?(-([0-9]{1,2})(:([0-9]{2}))?)?$ ]]; then
+            start="$(printf '%d:%02d' "$((10#''${BASH_REMATCH[1]}))" "$((10#''${BASH_REMATCH[3]:-0}))")"
+            end=""
+            [ -n "''${BASH_REMATCH[5]}" ] && end="$(printf '%d:%02d' "$((10#''${BASH_REMATCH[5]}))" "$((10#''${BASH_REMATCH[7]:-0}))")"
+            break
+          fi
+          msg="時間の形が読めませんでした。例: 10:00-11:30、10:00、空欄なら終日"
+        done
+        cals="$(${calEvent} calendars 2>/dev/null)"
+        if [ "$(printf '%s\n' "$cals" | grep -c .)" -gt 1 ]; then
+          cal="$(choose "登録するカレンダー" "$cals")" || exit 0
+        else
+          cal="$cals"
+        fi
+        # 通知のタイミング（終日の予定は当日の朝 9 時）
+        if [ -n "$start" ]; then
+          alarm="$(choose "通知" "$(printf '%s\n' 10分前 なし 開始時 5分前 30分前 1時間前)")" || exit 0
+        else
+          alarm="$(choose "通知" "$(printf '%s\n' '当日 9:00' なし)")" || exit 0
+        fi
+        case "$alarm" in
+          なし) alarm="" ;; 開始時) alarm=0 ;; 5分前) alarm=5 ;; 10分前) alarm=10 ;;
+          30分前) alarm=30 ;; 1時間前) alarm=60 ;; *) alarm=0 ;;
+        esac
+        result="$(${calEvent} add "$sel" "$title" "$start" "$end" "$cal" "$alarm" 2>&1)"
+        if [ "$result" = ok ]; then
+          ARGS=(); cal_render && cal_image_args
+          cal_event_args
+          sketchybar "''${ARGS[@]}"
+        else
+          osascript - "$result" <<'AS' >/dev/null 2>&1
+    on run argv
+      display notification (item 1 of argv) with title "予定を追加できませんでした"
+    end run
+    AS
+        fi ;;
+
+      # 日付を選ぶ（引数: 週 1〜6 と曜日の列 0〜6）→ 輪を付け直して、その日の予定を表示
+      cal-select)
+        sel="$(sed -n "$2p" "$CAL_DIR/dates" 2>/dev/null | cut -d' ' -f$(( $3 + 1 )))"
+        [ -n "$sel" ] || exit 0
+        echo "$sel" > "$CAL_SEL"
+        ARGS=(); cal_render && cal_image_args
+        cal_event_args
+        sketchybar "''${ARGS[@]}" ;;
 
       # 通知センター: 隠れている標準メニューバーの時計をアクセシビリティ経由でクリックして開く
       # （sketchybar にアクセシビリティの許可が必要。失敗したら通知設定を開く）
@@ -388,12 +517,22 @@ let
   # ── 時計 ──────────────────────────────────────────────────────────────── #
   # カレンダーの月送り行。行全体をスライダーにして画像（‹ 年月 ›）を敷き、クリック位置で分ける
   # （左 2 割 = 前の月 / 右 2 割 = 次の月 / 真ん中 = 今月）。スライダーは帯の外のクリックを無視するため
+  # 週の行も同じ作り。押した位置（7 等分）からその日を選ぶ
+  calWeek = plugin "cal-week" ''
+    [ "$SENDER" = "mouse.clicked" ] || exit 0
+    col=$(( ''${PERCENTAGE:-0} * 7 / 100 )); [ "$col" -gt 6 ] && col=6
+    exec ${action} cal-select "''${NAME##*.w}" "$col"
+  '';
+
   calNav = plugin "cal-nav" ''
     [ "$SENDER" = "mouse.clicked" ] || exit 0
     if   [ "''${PERCENTAGE:-50}" -lt 20 ]; then exec ${action} cal-shift -1
     elif [ "''${PERCENTAGE:-50}" -gt 80 ]; then exec ${action} cal-shift 1
     else exec ${action} cal-shift 0; fi
   '';
+
+  # 予定の追加など（pkgs/calendar/event.js。EventKit を JXA で呼ぶ。カレンダーアプリは開かない）
+  calEvent = "osascript -l JavaScript ${../pkgs/calendar/event.js}";
 
   # カレンダーを画像で描く（pkgs/calendar/render.py。日曜・祝日は赤、土曜は青、今日は丸、予定は点）
   calRender = "${pkgs.python3.withPackages (ps: [ ps.pillow ])}/bin/python3 ${../pkgs/calendar/render.py}";
@@ -402,70 +541,65 @@ let
   icalBuddy = "/opt/homebrew/bin/icalBuddy"; # Homebrew の ical-buddy（modules/homebrew.nix）
 
   clock = plugin "clock" (header + ''
-    weekday_ja() { case "$(date '+%u')" in 1) echo 月;; 2) echo 火;; 3) echo 水;; 4) echo 木;; 5) echo 金;; 6) echo 土;; 7) echo 日;; esac; }
-
-    # 月カレンダー（月送りの行とカレンダー本体を画像で描いて並べる。幅 224）
+    # 月カレンダー: 月送り・曜日・6 週の行を画像で並べる（幅 224）。
+    # 画像は行の背景に敷き、月送りと週の行は透明なスライダーにして押した位置を受け取る
+    # （スライダーの帯に画像を敷くと二重に描かれる。帯の外のクリックは無視される）
     calendar() {
-      local p=clock off sign y m nav grid
-      off="$(cat "$CAL_STATE" 2>/dev/null || echo 0)"
-      if [ "$off" -ge 0 ]; then sign="+$off"; else sign="$off"; fi
-      read -r y m < <(date -v1d -v"''${sign}m" '+%Y %-m')
-      read -r nav grid < <(${calRender} "$y" "$m" "''${TMPDIR:-/tmp}/sketchybar-calendar" 2>/dev/null)
-      [ -n "$grid" ] || return 0
-
-      # 画像は行の背景に敷く（スライダーの帯に敷くと、帯の「進んだ部分」にも同じ画像が描かれて二重になる）。
-      # スライダーは透明にして、クリック位置を受け取るためだけに使う
+      local p=clock i
+      cal_render || return 0
       BATCH+=(--add slider "$p.dyn.cal.nav" popup."$p" 224
         --set "$p.dyn.cal.nav" icon.drawing=off label.drawing=off
-          background.drawing=on background.color=0x00000000 background.height=30
-          background.image="$nav" background.image.scale=0.5
+          background.drawing=on background.color=0x00000000 background.height=30 background.image.scale=0.5
           slider.percentage=0 slider.knob="" slider.highlight_color=0x00000000
           slider.background.drawing=on slider.background.color=0x00000000 slider.background.height=30
           script="${calNav}"
         --subscribe "$p.dyn.cal.nav" mouse.clicked
-        --add item "$p.dyn.cal.grid" popup."$p"
-        --set "$p.dyn.cal.grid" icon.drawing=off label.drawing=off width=224
-          background.drawing=on background.color=0x00000000 background.height=178
-          background.image="$grid" background.image.scale=0.5)
-      MENU_ROWS+=("$p.dyn.cal.nav" "$p.dyn.cal.grid")
+        --add item "$p.dyn.cal.head" popup."$p"
+        --set "$p.dyn.cal.head" icon.drawing=off label.drawing=off width=224
+          background.drawing=on background.color=0x00000000 background.height=22 background.image.scale=0.5)
+      for i in 1 2 3 4 5 6; do
+        BATCH+=(--add slider "$p.dyn.cal.w$i" popup."$p" 224
+          --set "$p.dyn.cal.w$i" icon.drawing=off label.drawing=off
+            background.drawing=on background.color=0x00000000 background.height=26 background.image.scale=0.5
+            slider.percentage=0 slider.knob="" slider.highlight_color=0x00000000
+            slider.background.drawing=on slider.background.color=0x00000000 slider.background.height=26
+            script="${calWeek}"
+          --subscribe "$p.dyn.cal.w$i" mouse.clicked)
+        MENU_ROWS+=("$p.dyn.cal.w$i")
+      done
+      MENU_ROWS+=("$p.dyn.cal.nav" "$p.dyn.cal.head")
       [ "$MAX_WIDTH" -lt 232 ] && MAX_WIDTH=232
-      return 0
+      ARGS=(); cal_image_args; BATCH+=("''${ARGS[@]}")
     }
 
-    # 今日から 1 週間の予定（カレンダー.app のデータを icalBuddy で読む）
+    # 選んだ日の予定（行は先に用意しておき、日付を選ぶたびに中身だけ差し替える）
     events() {
-      local p=clock line i=0 LC_ALL=en_US.UTF-8
-      menu_header $p h.ev "予定（7日間）"
-      if [ ! -x ${icalBuddy} ]; then
-        menu_item $p ev.none "󰃭" "ical-buddy が未インストールです"
-        return
-      fi
-      while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        i=$((i + 1))
-        [ "''${#line}" -gt 26 ] && line="''${line:0:26}…"
-        menu_item $p "ev.$i" "󰃭" "$line"
-      done < <(${icalBuddy} -n -nc -nrd -b "" -iep "datetime,title" -po "datetime,title" -ps "|  |" \
-                 -df "%m/%d(%a)" -tf "%H:%M" -li 10 eventsToday+7 2>/dev/null)
-      [ "$i" -eq 0 ] && menu_item $p ev.none "󰃭" "予定はありません"
+      local p=clock i
+      menu_header $p h.ev "予定"
+      for i in $(seq 1 "$CAL_EVENT_ROWS"); do menu_item $p "ev.$i" "󰃭" ""; done
+      menu_item $p ev.add "󰐕" "予定を追加…" cal-add
+      ARGS=(); cal_event_args; BATCH+=("''${ARGS[@]}")
     }
 
     build_menu() {
-      local p=clock
+      local p=clock i pad
       BATCH+=(--add item "$p.dyn.now" popup."$p" --set "$p.dyn.now" icon.drawing=off
         label="$(date '+%H:%M')" label.font="Hack Nerd Font:Bold:22.0" label.color=$FG
-        label.padding_left=0 label.padding_right=0)
+        label.padding_left=0 label.padding_right=0 # 大きな時刻は高めの行に
+        background.drawing=on background.color=0x00000000 background.height=40)
       MENU_ROWS+=("$p.dyn.now"); CENTER_ROWS+=("$p.dyn.now")
       calendar
       events
+      menu_item $p accounts "󰒓" "カレンダーのアカウント…" internet-accounts # Google / Outlook などを追加すると同期される
       menu_item $p dt "󰒓" "日付と時刻設定…" datetime-settings
-      # カレンダーの画像（幅 224）をメニューの中央に置く
-      local pad=$(( 4 + (MAX_WIDTH - 224) / 2 ))
-      BATCH+=(--set "$p.dyn.cal.nav" padding_left=$pad --set "$p.dyn.cal.grid" padding_left=$pad)
+      # カレンダーの画像（幅 224）をメニューの中央に。予定の行はメニュー幅に収める
+      pad=$(( 4 + (MAX_WIDTH - 224) / 2 ))
+      for i in nav head w1 w2 w3 w4 w5 w6; do BATCH+=(--set "$p.dyn.cal.$i" padding_left=$pad); done
+      for i in $(seq 1 "$CAL_EVENT_ROWS"); do BATCH+=(--set "$p.dyn.ev.$i" width="$MAX_WIDTH" label.max_chars=15); done
     }
 
-    # 開くたびに今月から表示
-    [ "$SENDER" = "mouse.clicked" ] && echo 0 > "$CAL_STATE"
+    # 開くたびに今月・今日を選んだ状態から
+    if [ "$SENDER" = "mouse.clicked" ]; then echo 0 > "$CAL_STATE"; date +%F > "$CAL_SEL"; fi
     handle_popup
     sketchybar --set "$NAME" label="$(date '+%m/%d')($(weekday_ja)) $(date '+%H:%M')"
   '');
@@ -1040,10 +1174,10 @@ in
         icon.padding_left=4 icon.padding_right=4 \
         label.padding_left=4 label.padding_right=4
 
-      # メニュー（ポップアップ）の見た目
+      # メニュー（ポップアップ）の見た目。背景は少し透かしてぼかす（すりガラス風。バー本体は不透明）
       # y_offset=0: バーとメニューの間にすき間があると、マウスがそこを通るときに
       #   「バーからもメニューからも出た」扱いになってメニューが閉じてしまう
-      POPUP="popup.background.color=0xf01a1b26 popup.background.corner_radius=8 \
+      POPUP="popup.background.color=0xb01a1b26 popup.background.corner_radius=8 \
         popup.background.border_width=1 popup.background.border_color=0xff414868 \
         popup.blur_radius=30 popup.y_offset=0"
       MENU="mouse.clicked mouse.exited.global"
@@ -1088,7 +1222,8 @@ in
 
       sketchybar --add item clock right \
         --subscribe clock menu_rebuild $MENU \
-        --set clock icon.drawing=off update_freq=10 script="${clock}" popup.align=right $POPUP
+        --set clock icon.drawing=off update_freq=10 script="${clock}" popup.align=right $POPUP \
+          popup.height=26 # 行の最低の高さ（既定はバーの高さ 33。カレンダーの週の行を詰める）
 
       sketchybar --add item battery right \
         --subscribe battery system_woke power_source_change $MENU \

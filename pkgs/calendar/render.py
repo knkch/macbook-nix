@@ -1,9 +1,12 @@
 # sketchybar の時計メニューに出すカレンダーを画像で描く
-#   使い方: render.py <年> <月> <出力ディレクトリ>
-#   出力:   <月送りの行の画像> <カレンダーの画像>（空白区切りで 1 行）
-# 日曜・祝日は赤、土曜は青、今日は丸、予定のある日は点。前後の月の日付は薄く表示する。
+#   使い方: render.py <年> <月> <選択中の日 YYYY-MM-DD（なければ -）> <出力ディレクトリ>
+#   出力:   <月送り> <曜日> <1 週目> … <6 週目> の画像のパス（空白区切りで 1 行）
+#           <出力ディレクトリ>/dates に、各週の日付（7 個ずつ空白区切り、6 行）
+# 日曜・祝日は赤、土曜は青、今日は塗りの丸、選んだ日は輪、予定のある日は右上に件数のバッジ。前後の月の日付は薄く表示する。
+# 週ごとに別の画像にするのは、sketchybar 側で週の行を押した位置から日付を割り出すため。
 # 祝日はカレンダー「日本の祝日」、予定はそれ以外のカレンダーから icalBuddy で読む。
 import calendar
+import collections
 import datetime
 import os
 import subprocess
@@ -13,7 +16,8 @@ import unicodedata
 
 from PIL import Image, ImageDraw, ImageFont
 
-YEAR, MONTH, OUTDIR = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
+YEAR, MONTH, OUTDIR = int(sys.argv[1]), int(sys.argv[2]), sys.argv[4]
+SELECTED = sys.argv[3] if sys.argv[3] != "-" else None
 S = 2  # Retina 用に 2 倍で描き、sketchybar で 0.5 倍表示する
 
 FG = (192, 202, 245)
@@ -43,15 +47,15 @@ def font(weight, size):
 
 
 def event_dates(cal_args, start, end):
-    """指定したカレンダーで予定がある日（YYYY-MM-DD）の集合"""
+    """指定したカレンダーの日ごとの予定の件数（YYYY-MM-DD → 件数）"""
     try:
         out = subprocess.run(
             [ICAL, "-nc", "-nrd", "-b", "", "-iep", "datetime", "-df", "%Y-%m-%d", "-tf", "",
              *cal_args, f"eventsFrom:{start}", f"to:{end}"],
             capture_output=True, text=True, timeout=5).stdout
     except Exception:
-        return set()
-    return {line.strip()[:10] for line in out.splitlines() if line.strip()[:4].isdigit()}
+        return collections.Counter()
+    return collections.Counter(line.strip()[:10] for line in out.splitlines() if line.strip()[:4].isdigit())
 
 
 def P(*xy):  # 論理座標 → 画像の座標
@@ -82,17 +86,21 @@ else:
     d.text(P(W / 2, NAV_H / 2 - 5), title, font=font(6, 14), fill=BLUE, anchor="mm")
     d.text(P(W / 2, NAV_H / 2 + 9), "今月へ", font=font(3, 9), fill=SUB, anchor="mm")
 
-# ── カレンダー ──
-H = HEAD + CH * 6 + 4
-grid = Image.new("RGBA", P(W, H), (0, 0, 0, 0))
-d = ImageDraw.Draw(grid)
-head_font, day_font, today_font = font(6, 11), font(3, 13), font(6, 13)
+# ── 曜日の行 ──
+head = Image.new("RGBA", P(W, HEAD), (0, 0, 0, 0))
+d = ImageDraw.Draw(head)
 for i, name in enumerate("日月火水木金土"):
     color = RED if i == 0 else BLUE if i == 6 else SUB
-    d.text(P(i * CW + CW / 2, HEAD / 2), name, font=head_font, fill=color, anchor="mm")
-for r, week in enumerate(weeks):
+    d.text(P(i * CW + CW / 2, HEAD / 2), name, font=font(6, 11), fill=color, anchor="mm")
+
+# ── 週の行（6 行）──
+day_font, bold_font = font(3, 13), font(6, 13)
+week_images = []
+for week in weeks:
+    img = Image.new("RGBA", P(W, CH), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
     for c, day in enumerate(week):
-        cx, cy = c * CW + CW / 2, HEAD + r * CH + CH / 2 - 1
+        cx, cy = c * CW + CW / 2, CH / 2 - 1
         iso = day.isoformat()
         if day.month != MONTH:
             color = DIM
@@ -105,11 +113,21 @@ for r, week in enumerate(weeks):
         f = day_font
         if day == today:
             d.ellipse(P(cx - 11, cy - 11, cx + 11, cy + 11), fill=BLUE)
-            color, f = DARK, today_font
+            color, f = DARK, bold_font
+        if iso == SELECTED and day != today:
+            d.ellipse(P(cx - 11, cy - 11, cx + 11, cy + 11), outline=BLUE, width=2 * S // 2 + 1)
+            f = bold_font
         d.text(P(cx, cy), str(day.day), font=f, fill=color, anchor="mm")
-        if iso in events and day.month == MONTH:
-            dot = DARK if day == today else DOT
-            d.ellipse(P(cx - 1.5, cy + 7, cx + 1.5, cy + 10), fill=dot)
+        # 予定のある日: 右上に件数のバッジ（10 件以上は 9+）
+        if events[iso] and day.month == MONTH:
+            n = events[iso]
+            label = str(n) if n < 10 else "9+"
+            bw = 10 if n < 10 else 14
+            bx, by = cx + 9, cy - 7
+            d.rounded_rectangle(P(bx - bw / 2, by - 5, bx + bw / 2, by + 5), radius=5 * S, fill=RED,
+                                outline=(26, 27, 38), width=S)
+            d.text(P(bx, by), label, font=font(6, 7), fill=(255, 255, 255), anchor="mm")
+    week_images.append(img)
 
 # 古い画像を消して、毎回新しい名前で保存（sketchybar が同じパスの画像を使い回さないように）
 os.makedirs(OUTDIR, exist_ok=True)
@@ -120,8 +138,12 @@ for f in os.listdir(OUTDIR):
         except OSError:
             pass
 stamp = time.time_ns()
-nav_path = os.path.join(OUTDIR, f"nav-{stamp}.png")
-grid_path = os.path.join(OUTDIR, f"grid-{stamp}.png")
-nav.save(nav_path)
-grid.save(grid_path)
-print(nav_path, grid_path)
+paths = []
+for name, img in [("nav", nav), ("head", head)] + [(f"w{i + 1}", w) for i, w in enumerate(week_images)]:
+    path = os.path.join(OUTDIR, f"{name}-{stamp}.png")
+    img.save(path)
+    paths.append(path)
+with open(os.path.join(OUTDIR, "dates"), "w") as f:
+    for week in weeks:
+        f.write(" ".join(day.isoformat() for day in week) + "\n")
+print(" ".join(paths))
