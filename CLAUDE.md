@@ -289,6 +289,9 @@ Workflow「Brew Cask Finder」で `cask {キーワード}` 検索。
 
 ## 今後の課題
 
+- protected-reader: 通知を読めなかったとき、ファイルを直接開いた結果（`Operation not permitted` = 許可がない）もログに出すと、
+  `sketchybar-doctor` で原因がはっきりする。ただし直すとプログラムのパスが変わり許可の付け直しが要るので、
+  `nix flake update` など、どのみち付け直すときに一緒に入れる。
 - nixpkgs / nix-darwin / home-manager 25.05 → 新しいリリースへ更新。
   その際 `programs.git.userName/userEmail` → `programs.git.settings.user.*`、
   `programs.git.delta` → `programs.delta` などの移行が必要。
