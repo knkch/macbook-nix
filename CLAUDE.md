@@ -105,13 +105,35 @@ nix-darwin 25.05 の cask 指定には `--adopt` がないため、手動イン�
 | 要素 | 管理 | 備考 |
 |------|------|------|
 | AeroSpace | 本体: cask / 設定: `programs.aerospace`（home/desktop.nix） | `start-at-login = true`。キー割当は下記 |
-| sketchybar | `services.sketchybar`（modules/desktop.nix） | 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
+| sketchybar | `services.sketchybar`（modules/desktop.nix） | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（右端）。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
 | jankyborders | `services.jankyborders`（modules/desktop.nix） | round, width=5 |
 | メニューバー | `_HIHideMenuBar = true` | sketchybar と重ならないよう標準メニューバーを自動非表示 |
 | AeroSpace ギャップ | `gaps.outer.top`（home/desktop.nix） | 内蔵画面 `5`（ノッチのため macOS がメニューバー分を空けたまま）、外部モニター `37`（バー 32 + 5）。sketchybar を無効にするときは `5` に |
 | Spaces | `spans-displays = true` | AeroSpace 推奨（ディスプレイごとの個別スペースをオフ）。反映にはログアウトが必要 |
 | Dock | `autohide = true` / `mru-spaces = false` / `expose-group-apps = true` | 自動非表示・スペース自動並べ替えオフ・Mission Control でアプリごとにグループ化 |
 | WindowManager | `GloballyEnabled` / `EnableStandardClickToShowDesktop` / `EnableTilingByEdgeDrag` / `EnableTopTilingByEdgeDrag` / `EnableTilingOptionAccelerator` すべて `false` | ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準タイル機能をオフ（AeroSpace と競合するため） |
+
+sketchybar の項目（クリックでメニュー。メニューは開くたびに作り直して最新の状態を表示）:
+
+| 項目 | バーの表示 | メニュー |
+|------|------|------|
+| Apple | アイコン | この Mac について / システム設定 / ソフトウェアアップデート / App Store / アクティビティモニタ / スリープ / 画面ロック（`pmset displaysleepnow`）/ 再起動・システム終了・ログアウト（確認ダイアログ） |
+| VPN | Tailscale か他の VPN が接続中なら緑 | Tailscale の状態・接続/切断・出口ノード選択（CLI `/usr/local/bin/tailscale`）、システムの VPN 一覧をクリックで接続/切断（`scutil --nc`、Tailscale は除外）、VPN 設定 |
+| ネットワーク | 有線 > Wi-Fi の順でアイコン。SSID が取れれば表示 | Wi-Fi オン/オフ、登録済みネットワークへ接続（`networksetup -setairportnetwork`、失敗時は Wi-Fi 設定を開く）、有線 IP・Wi-Fi IP・ルーター・DNS、Wi-Fi / ネットワーク設定 |
+| Bluetooth | オフ / オン / 接続中で色分け（`blueutil`） | オン/オフ、ペアリング済みデバイスをクリックで接続/切断、Bluetooth 設定 |
+| 音量 | スクロールで音量調整 | 出力音量スライダー・ミュート・出力デバイス選択、入力音量スライダー・入力デバイス選択（`SwitchAudioSource`）、サウンド設定 |
+| 電池 | 残量 | 残量・電源・残り時間・低電力モード、アクティビティモニタ、バッテリー設定 |
+| 入力ソース | あ / A / カ など | 有効な入力ソース一覧（現在のものに印）、次の入力ソースへ（⌃Space を送る）、絵文字と記号、キーボード設定 |
+| 通知（右端） | ベル | 通知センターを開く（隠れた標準メニューバーの時計をアクセシビリティ経由でクリック）、集中モード（下記）、集中モード設定、通知設定 |
+| 時計 | 日付・曜日・時刻 | 日付・時刻、月カレンダー（今日を [ ] で表示、前の月/次の月）、7 日分の予定（`icalBuddy`、Homebrew の `ical-buddy`）、日付と時刻設定 |
+
+- 構成: 共通関数 `lib`（メニュー項目の追加・開閉）、操作 `action`、各項目のプラグイン（`build_menu` でメニューを作る）。すべて modules/desktop.nix。
+- 初回に許可が必要: Bluetooth（`blueutil`）、カレンダー（`icalBuddy`）、アクセシビリティ（通知センターを開く・入力ソース切り替え・絵文字）。いずれも sketchybar に対して許可する。
+- SSID は macOS の位置情報保護で `<redacted>` になり取得できない（その場合は「接続中」と表示）。
+- 通知の履歴・集中モードの状態は保護領域にあり直接読めない（フルディスクアクセスが必要）。
+  集中モードは「ショートカット」アプリ経由: 名前が `集中モード: ` で始まるショートカットをメニューに並べてクリックで実行、
+  `集中モード状態`（「現在の集中モードを取得」を出力）があれば現在の状態を表示。
+- 入力ソースを直接選んで切り替える CLI（macism など）は Homebrew / nixpkgs にないため、一覧は表示のみ。
 
 sketchybar を無効にする手順: `services.sketchybar.enable = false`、`_HIHideMenuBar = false`、
 AeroSpace の `gaps.outer.top = 5`（単一値に戻す）。AeroSpace の `exec-on-workspace-change`（sketchybar への通知）は

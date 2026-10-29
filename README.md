@@ -79,7 +79,7 @@ rebuild
 | ツール | 管理 | 概要 |
 |--------|------|------|
 | AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
-| Sketchybar | `services.sketchybar` | 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
+| Sketchybar | `services.sketchybar` | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ / 右: VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー） |
 | jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
 | Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
 | macSKK | cask + dotfile | 日本語 IME（SKK-JISYO.L） |
@@ -167,6 +167,9 @@ Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox
 
 ### 2026-10-29 sketchybar 再有効化
 
+- **sketchybar**: 標準メニューバー相当の項目を追加（Apple メニュー、ネットワーク / Wi-Fi、Bluetooth、VPN（Tailscale・出口ノード）、音量スライダーと入出力デバイス、電池、入力ソース、通知と集中モード（ショートカット経由）、時計の月カレンダーと予定）
+- **Homebrew**: `ical-buddy` を追加（時計メニューの予定表示）
+- **sketchybar**: `topmost=on` で標準メニューバーを覆う。内蔵画面（ノッチ）は AeroSpace の上ギャップを 5 に
 - **sketchybar**: 再び有効化。メニューバーを自動非表示に、AeroSpace の上ギャップを 5 → 37 に
 - **Brother LOGINserver**（Intel 専用）: Nix 管理外。`/Library/LaunchAgents` から plist を外して自動起動を停止
 

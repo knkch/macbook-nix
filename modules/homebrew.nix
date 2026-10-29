@@ -113,6 +113,7 @@ in
       "libaacs"
       "libbluray"
       "openjdk@17"   # VLC の BD-J メニュー用（最新 JDK はクラッシュ）
+      "ical-buddy"   # sketchybar の時計メニューで予定を表示
     ];
 
     masApps = {
