@@ -105,16 +105,16 @@ nix-darwin 25.05 の cask 指定には `--adopt` がないため、手動イン�
 | 要素 | 管理 | 備考 |
 |------|------|------|
 | AeroSpace | 本体: cask / 設定: `programs.aerospace`（home/desktop.nix） | `start-at-login = true`。キー割当は下記 |
-| sketchybar | `services.sketchybar`（modules/desktop.nix） | 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
+| sketchybar | `services.sketchybar`（modules/desktop.nix） | 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計。`topmost=on` で、上端にマウスを寄せて出てくる標準メニューバーを覆い隠す |
 | jankyborders | `services.jankyborders`（modules/desktop.nix） | round, width=5 |
 | メニューバー | `_HIHideMenuBar = true` | sketchybar と重ならないよう標準メニューバーを自動非表示 |
-| AeroSpace ギャップ | `gaps.outer.top = 37`（home/desktop.nix） | バーの高さ 32 + 5。sketchybar を無効にするときは `5` に |
+| AeroSpace ギャップ | `gaps.outer.top`（home/desktop.nix） | 内蔵画面 `5`（ノッチのため macOS がメニューバー分を空けたまま）、外部モニター `37`（バー 32 + 5）。sketchybar を無効にするときは `5` に |
 | Spaces | `spans-displays = true` | AeroSpace 推奨（ディスプレイごとの個別スペースをオフ）。反映にはログアウトが必要 |
 | Dock | `autohide = true` / `mru-spaces = false` / `expose-group-apps = true` | 自動非表示・スペース自動並べ替えオフ・Mission Control でアプリごとにグループ化 |
 | WindowManager | `GloballyEnabled` / `EnableStandardClickToShowDesktop` / `EnableTilingByEdgeDrag` / `EnableTopTilingByEdgeDrag` / `EnableTilingOptionAccelerator` すべて `false` | ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準タイル機能をオフ（AeroSpace と競合するため） |
 
 sketchybar を無効にする手順: `services.sketchybar.enable = false`、`_HIHideMenuBar = false`、
-AeroSpace の `gaps.outer.top = 5`。AeroSpace の `exec-on-workspace-change`（sketchybar への通知）は
+AeroSpace の `gaps.outer.top = 5`（単一値に戻す）。AeroSpace の `exec-on-workspace-change`（sketchybar への通知）は
 `osConfig.services.sketchybar.enable` に連動して自動で有効・無効になる。
 
 AeroSpace 導入時の手動作業: アクセシビリティ許可（プライバシーとセキュリティ > アクセシビリティ）、

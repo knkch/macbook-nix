@@ -20,7 +20,9 @@ in
       ];
 
       gaps = {
-        outer = { left = 5; right = 5; top = 37; bottom = 5; };  # top = バーの高さ 32 + 5
+        # top: 内蔵画面（ノッチあり）は macOS がメニューバー分を空けたままにするので 5、
+        #      外部モニターはバーの高さ 32 + 5
+        outer = { left = 5; right = 5; top = [ { monitor.built-in = 5; } 37 ]; bottom = 5; };
         inner = { horizontal = 5; vertical = 5; };
       };
 

@@ -62,8 +62,9 @@ in
   services.sketchybar = {
     enable = true;
     config = ''
+      # topmost=on: マウスを上端に寄せて出てくる macOS のメニューバーをバーで覆い隠す
       sketchybar --bar position=top height=32 blur_radius=30 color=0xcc1a1b26 \
-        padding_left=8 padding_right=8
+        padding_left=8 padding_right=8 topmost=on
 
       sketchybar --default \
         icon.font="Hack Nerd Font:Bold:15.0" \
