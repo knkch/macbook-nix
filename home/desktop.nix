@@ -20,7 +20,7 @@ in
       ];
 
       gaps = {
-        outer = { left = 5; right = 5; top = 5; bottom = 5; };
+        outer = { left = 5; right = 5; top = 37; bottom = 5; };  # top = バーの高さ 32 + 5
         inner = { horizontal = 5; vertical = 5; };
       };
 

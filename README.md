@@ -28,7 +28,7 @@ rebuild
 ├── modules/
 │   ├── system.nix         # nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults
 │   ├── homebrew.nix       # casks / brews / masApps / VS Code 拡張 / cleanup
-│   └── desktop.nix        # sketchybar（現在無効）・jankyborders（launchd サービス）
+│   └── desktop.nix        # sketchybar・jankyborders（launchd サービス）
 └── home/
     ├── default.nix        # ユーザー情報・dotfiles・imports
     ├── packages.nix       # CLI / インフラ / クラウド
@@ -79,12 +79,12 @@ rebuild
 | ツール | 管理 | 概要 |
 |--------|------|------|
 | AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
-| Sketchybar | `services.sketchybar` | **現在は無効**（設定は残置）。有効時: 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
+| Sketchybar | `services.sketchybar` | 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
 | jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
 | Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
 | macSKK | cask + dotfile | 日本語 IME（SKK-JISYO.L） |
 
-- macOS のメニューバーは通常表示（sketchybar 無効中のため）。sketchybar を戻すときは自動非表示に戻し、AeroSpace の上ギャップを 37 にする。
+- macOS のメニューバーは自動非表示（sketchybar と重ならないように）。AeroSpace の上ギャップはバーの高さに合わせて 37。
 - 「ディスプレイごとに個別の操作スペース」はオフ（AeroSpace 推奨、反映にはログアウトが必要）。
 - Dock は自動非表示、操作スペースの自動並べ替えはオフ、Mission Control はアプリごとにグループ化。
 - ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準のウィンドウタイル（画面端ドラッグ / Option+ドラッグ）はオフ（AeroSpace と競合するため）。
@@ -164,6 +164,11 @@ Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox
 > Intel 専用（Rosetta が必要）: Maltego / e-Gov電子申請アプリケーション / Brother ドライバの常駐プロセス
 
 ## 変更履歴
+
+### 2026-10-29 sketchybar 再有効化
+
+- **sketchybar**: 再び有効化。メニューバーを自動非表示に、AeroSpace の上ギャップを 5 → 37 に
+- **Brother LOGINserver**（Intel 専用）: Nix 管理外。`/Library/LaunchAgents` から plist を外して自動起動を停止
 
 ### 2026-10-29 AeroSpace 向け macOS 設定
 

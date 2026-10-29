@@ -24,7 +24,7 @@ rebuild   # zsh エイリアス
 | `flake.nix` | inputs / outputs。`user` / `host` はここで一元定義し `specialArgs` で各モジュールへ |
 | `modules/system.nix` | nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults（Dock / Spaces / WindowManager 含む）・GC |
 | `modules/homebrew.nix` | Homebrew casks / brews / masApps / VS Code 拡張 / cleanup |
-| `modules/desktop.nix` | 常駐サービス: sketchybar（設定・プラグイン込み、現在は無効）、jankyborders |
+| `modules/desktop.nix` | 常駐サービス: sketchybar（設定・プラグイン込み）、jankyborders |
 | `home/default.nix` | ユーザー情報・dotfiles・imports |
 | `home/packages.nix` | 一般 CLI / インフラ / クラウドツール |
 | `home/security.nix` | セキュリティツール群（`my.security.enable` で一括オン・オフ） |
@@ -105,16 +105,16 @@ nix-darwin 25.05 の cask 指定には `--adopt` がないため、手動イン�
 | 要素 | 管理 | 備考 |
 |------|------|------|
 | AeroSpace | 本体: cask / 設定: `programs.aerospace`（home/desktop.nix） | `start-at-login = true`。キー割当は下記 |
-| sketchybar | `services.sketchybar`（modules/desktop.nix） | **現在は無効**（`enable = false`、設定は残置）。有効時: 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
+| sketchybar | `services.sketchybar`（modules/desktop.nix） | 左: ワークスペース 1〜9・前面アプリ / 右: 音量・電池・時計 |
 | jankyborders | `services.jankyborders`（modules/desktop.nix） | round, width=5 |
-| メニューバー | `_HIHideMenuBar = false` | sketchybar 無効中は標準メニューバーを表示。`true` の行はコメントアウトで残置 |
-| AeroSpace ギャップ | `gaps.outer.top = 5`（home/desktop.nix） | sketchybar 有効時は `37`（バーの高さ 32 + 5）に戻す |
+| メニューバー | `_HIHideMenuBar = true` | sketchybar と重ならないよう標準メニューバーを自動非表示 |
+| AeroSpace ギャップ | `gaps.outer.top = 37`（home/desktop.nix） | バーの高さ 32 + 5。sketchybar を無効にするときは `5` に |
 | Spaces | `spans-displays = true` | AeroSpace 推奨（ディスプレイごとの個別スペースをオフ）。反映にはログアウトが必要 |
 | Dock | `autohide = true` / `mru-spaces = false` / `expose-group-apps = true` | 自動非表示・スペース自動並べ替えオフ・Mission Control でアプリごとにグループ化 |
 | WindowManager | `GloballyEnabled` / `EnableStandardClickToShowDesktop` / `EnableTilingByEdgeDrag` / `EnableTopTilingByEdgeDrag` / `EnableTilingOptionAccelerator` すべて `false` | ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準タイル機能をオフ（AeroSpace と競合するため） |
 
-sketchybar を再び有効にする手順: `services.sketchybar.enable = true`、`_HIHideMenuBar = true`（コメントを外し `false` 行を削除）、
-AeroSpace の `gaps.outer.top = 37`。AeroSpace の `exec-on-workspace-change`（sketchybar への通知）は
+sketchybar を無効にする手順: `services.sketchybar.enable = false`、`_HIHideMenuBar = false`、
+AeroSpace の `gaps.outer.top = 5`。AeroSpace の `exec-on-workspace-change`（sketchybar への通知）は
 `osConfig.services.sketchybar.enable` に連動して自動で有効・無効になる。
 
 AeroSpace 導入時の手動作業: アクセシビリティ許可（プライバシーとセキュリティ > アクセシビリティ）、
