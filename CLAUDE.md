@@ -311,8 +311,12 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
   - Invidious: 公開サーバーの多くは外部からの利用を止めていて、2026-10-30 時点で通ったのは `yt.chocolatemoo53.com`
     （既定の vid.puffyan.us は停止済み）。使えなくなったら https://api.invidious.io で探す。
   - **わかっている制限（2026-10-30）**:
-    - 再生は標準どおり mpv（+ yt-dlp）。mpv に YouTube の URL を渡す再生は、**多くの動画で `403 Forbidden`** になる
-      （mpv 0.41 + yt-dlp 2026.10 でも。yt-dlp 自身のダウンロードは通る）。YouTube 側の変更で、yt-dlp / mpv の更新で直る可能性がある → `nix flake update nixpkgs-unstable`。
+    - 再生は標準どおり mpv（+ yt-dlp）。mpv の**普通の設定（`programs.mpv`、home/packages.nix）**で 403 を避けている:
+      nixpkgs の mpv は同梱の古い yt-dlp（25.05 の 2025.11）を使い、取れる形式が少ない → `script-opts=ytdl_hook-ytdl_path=`で unstable の yt-dlp に。
+      さらに普通の形式は mpv（ffmpeg）が読むと `403 Forbidden` になるので、HLS（m3u8）形式を選ぶ `ytdl-format`（1080p まで、h264 優先）。
+      HLS がない動画は普通の形式になり 403 の可能性がある。直らなくなったら `nix flake update nixpkgs-unstable`。
+    - youtube-tui の「Play audio」系は組み込みの mpv（libmpv）で、mpv.conf を読まない（`Mpv::new()` のまま）ので上の設定が効かず、
+      多くの動画で 403 になる。音声だけ聞くときも「Play video」（mpv のウィンドウ）を使う。
     - 0.9.4 は保存済みのサムネイル（`~/.local/share/youtube-tui/thumbnails`）があると、次に起動したときの検索が止まる
       （`download_images = false` でも保存される）。止まったらこのフォルダを消す。
   - yt-dlp は nixpkgs-unstable の版（YouTube の変更に追いつくため）。

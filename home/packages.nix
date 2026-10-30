@@ -2,6 +2,20 @@
 {
   home.shellAliases.youtube = "youtube-tui"; # 「youtube」で YouTube の操作画面を開く
 
+  # ── mpv（動画・音声プレーヤー。`mpv <ファイルや URL>`）──────────────────── #
+  # YouTube の再生のための設定（2026-10-30 時点）:
+  # - nixpkgs の mpv は同梱の古い yt-dlp を使うので、新しい yt-dlp（unstable）を使わせる（ytdl_hook-ytdl_path）
+  # - 普通の形式は mpv が読むと 403 Forbidden になる。細かく区切って配信する HLS（m3u8）形式なら読めるので、それを選ぶ
+  #   （1080p まで。HLS がない動画は普通の形式）。Mac で負担の少ない h264 を優先する
+  programs.mpv = {
+    enable = true;
+    config = {
+      script-opts = "ytdl_hook-ytdl_path=${pkgsUnstable.yt-dlp}/bin/yt-dlp";
+      ytdl-format = "bv*[protocol^=m3u8][height<=1080]+ba[protocol^=m3u8]/b[protocol^=m3u8]/b";
+      ytdl-raw-options-append = "format-sort=vcodec:h264";
+    };
+  };
+
   # ── YouTube: youtube-tui ─────────────────────────────────────────────── #
   # youtube-tui は 0.9.4 を nixpkgs-unstable から（25.05 の 0.8.1 は検索結果の -1 を読めない。0.9 は Rust 1.88 以上が要る）。
   # 標準の機能のまま使い、設定 main.yml だけを Mac 向けにする。rebuild のたびに普通のファイルとして書き込む
@@ -50,7 +64,6 @@
     # ── メディア ─────────────────────────────────────────────────────────── #
     ffmpeg       # 動画・音声変換（Blu-ray → MP3 等）
     mkvtoolnix   # MKV 操作
-    mpv          # 動画・音声プレーヤー（`mpv <ファイル>`）
     pkgsUnstable.youtube-tui # YouTube の操作画面（`youtube`。上の youtubeTuiConfig）
     # yt-dlp は YouTube 側の変更に追いつくため頻繁に更新されるので、新しい unstable の版を使う（25.05 の版では再生できない動画が多い）
     pkgsUnstable.yt-dlp
