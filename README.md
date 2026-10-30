@@ -181,8 +181,8 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | `lg` | lazygit |
 | `vlc-bd` | Blu-ray 再生用に OpenJDK 17 を指定して VLC を起動 |
 | `music` | rmpc（音楽の操作画面）を開く |
-| `youtube` | pipe-viewer（YouTube の検索・再生。`youtube <検索語>` → 番号で再生、`youtube -n …` で音声だけ） |
-| `youtube-term` | 同じく検索・再生し、動画をターミナルの中に文字で描く（mpv の tct、360p） |
+| `youtube` | youtube-tui（YouTube の操作画面。再生は ytplay） |
+| `ytplay <URL>` | YouTube の動画を再生（`--no-video` で音声だけ、`--term` でターミナルの中に文字で描く） |
 | `yy` | Yazi（ファイルマネージャー）。終了するとそのフォルダへ移動。写真は Enter でプレビュー、音声はターミナルで再生、動画は mpv（`O` でターミナル内再生も選べる） |
 
 ### 音楽（`home/music.nix`）
@@ -276,7 +276,7 @@ macOS が外からの設定を許していないため、`rebuild` では入れ�
 
 ### 2026-10-30 メディア・アプリのメニュー・権限の分離
 
-- **メディア**: `youtube`（最初は youtube-tui、のちに pipe-viewer + ytplay に置き換え）、Yazi を home-manager 管理に（`yy`。動画・音声は mpv、写真はプレビュー）。
+- **メディア**: `youtube`（youtube-tui 0.9.4 + 再生用の ytplay。途中で pipe-viewer も試した）、Yazi を home-manager 管理に（`yy`。動画・音声は mpv、写真はプレビュー）。
   rmpc のヘッダーに操作キーの案内。Rigelian（有料）を外し、無料の GUI **ymuse** に（`pkgs/ymuse` で Mac 向けに手直し）
 - **sketchybar**: 前面アプリ名をクリックでそのアプリのメニュー（ファイル・編集…）を開ける。メニューの検索（⌘⇧/）
 - **権限**: アクセシビリティの操作を **ax-agent** に分離。sketchybar はアクセシビリティ・フルディスクアクセス・オートメーションのどれも持たない

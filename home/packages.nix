@@ -1,67 +1,67 @@
 { lib, pkgs, pkgsUnstable, ... }:
+let
+  # q で終了コード 9（ytplay が再生リストの残りもやめる）
+  ytplayInput = pkgs.writeText "ytplay-input.conf" "q quit 9\n";
+  ytplay = pkgs.writeShellApplication {
+    name = "ytplay";
+    runtimeInputs = [ pkgsUnstable.yt-dlp pkgs.mpv pkgs.coreutils ];
+    runtimeEnv.YTPLAY_INPUT_CONF = "${ytplayInput}";
+    text = builtins.readFile ./youtube/ytplay.sh;
+  };
+  # `youtube`: youtube-tui を開く。0.9.4 は保存済みのサムネイル（~/.local/share/youtube-tui/thumbnails）があると
+  # 次に起動したときの検索が「Loading search results...」のまま止まる（2026-10-30 に確認。サムネイルを保存しない設定でも保存される）。
+  # 起動のたびにサムネイルだけ消して回避する（再生履歴・保存した動画・登録チャンネルは別の場所なので残る）
+  youtube = pkgs.writeShellScriptBin "youtube" ''
+    rm -rf "''${HOME:?}/.local/share/youtube-tui/thumbnails"
+    exec ${pkgsUnstable.youtube-tui}/bin/youtube-tui "$@"
+  '';
+in
 {
-  home.shellAliases.youtube = "pipe-viewer"; # 「youtube」で検索・再生（番号を選ぶと再生。`youtube -n …` で音声だけ）
-  home.shellAliases.youtube-term = "pipe-viewer --player=ytterm"; # 動画をターミナルの中に文字で描く（mpv の tct）
 
-  # YouTube: 検索は pipe-viewer（Invidious などの中継サーバーを使わず YouTube から直接）、再生は ytplay。
-  # mpv に YouTube の URL を渡す普通の再生（mpv が yt-dlp から受け取ったリンクを直接読む）は、多くの動画で
-  # 403 Forbidden になる（2026-10 時点）。yt-dlp 自身のダウンロードは通るので、yt-dlp の出力をそのまま mpv に流す。
-  # 標準入力ではなくプロセス置換で渡すので、mpv をターミナルのキー（space・← →・q など）で操作できる。
-  # youtube-tui は 0.8.1 が検索結果の -1 を読めず、0.9 は設定ファイルの扱いが不安定だったのでやめた（CLAUDE.md）
-  # 設定 ~/.config/pipe-viewer/pipe-viewer.conf は rebuild のたびに書き込む（pipe-viewer は足りない項目を補って
-  # 自分で書き直すので、読み取り専用のリンクにはしない）。
-  home.activation.pipeViewerConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] (let
-    ytplay = pkgs.writeShellApplication {
-      name = "ytplay";
-      runtimeInputs = [ pkgsUnstable.yt-dlp pkgs.mpv ];
-      text = ''
-        # ytplay [--term] [mpv のオプション…] <YouTube の URL>: yt-dlp で取りながら mpv で再生
-        #   --no-video: 音声だけ取る / --term: ターミナルの中に文字（色付きの半角ブロック）で描く。細かい画質は活きないので 360p。
-        #   Kitty 方式（--vo=kitty）は cmux では映らず、mpv が強制終了することもあったので使わない
-        url="" fmt="bv*[height<=1080]+ba/b" args=() term=""
-        for a in "$@"; do
-          case "$a" in
-            http*) url="$a" ;;
-            --no-video) fmt="ba/b"; args+=("$a") ;;
-            --term) term=1 ;;
-            *) args+=("$a") ;;
-          esac
-        done
-        [ -n "$url" ] || { echo "使い方: ytplay [--term] [mpv のオプション…] <URL>" >&2; exit 2; }
-        if [ -n "$term" ] && [ "$fmt" != "ba/b" ]; then
-          fmt="bv*[height<=360]+ba/b"
-          args=(--vo=tct --really-quiet "''${args[@]}")
-        fi
-        # AV1 はハードウェアで再生できない Mac があるので、h264 → vp9 を優先する
-        mpv "''${args[@]}" <(yt-dlp -q --no-warnings -S "vcodec:h264,vcodec:vp9" -f "$fmt" -o - "$url")
-      '';
-    };
-    conf = pkgs.writeText "pipe-viewer.conf" ''
-      use utf8;
-
-      our $CONFIG = {
-        video_player_selected => "ytplay",
-        video_players => {
-          ytplay => {
-            cmd     => "${ytplay}/bin/ytplay",
-            arg     => "--force-media-title=*TITLE* *URL*",
-            fs      => "--fullscreen",
-            novideo => "--no-video",
-          },
-          ytterm => {
-            cmd     => "${ytplay}/bin/ytplay",
-            arg     => "--term --force-media-title=*TITLE* *URL*",
-            novideo => "--no-video",
-          },
-        },
-        ytdl     => 1,
-        ytdl_cmd => "${pkgsUnstable.yt-dlp}/bin/yt-dlp",
+  # ── YouTube: youtube-tui（画面）+ ytplay（再生）────────────────────────── #
+  # youtube-tui は 0.9.4 を nixpkgs-unstable から（25.05 の 0.8.1 は検索結果の -1 を読めない。0.9 は Rust 1.88 以上が要る）。
+  # 再生は ytplay（home/youtube/ytplay.sh）: mpv に YouTube の URL を直接渡すと多くの動画で 403 になるので、
+  # yt-dlp の出力を mpv に流し込む。youtube-tui の「音声だけ」なども組み込みの mpv ではなく ytplay で再生する（home/youtube/commands.yml）。
+  # 設定は rebuild のたびに普通のファイルとして書き込む（youtube-tui は起動のたびに設定を書き直すので、読み取り専用のリンクにすると検索が止まる）。
+  # 検索は YouTube から直接（RustyPipe）。Invidious（中継サーバー）は動画の詳細などに使う。公開サーバーの多くは外部からの利用を
+  # 止めていて、2026-10-30 時点で通ったのは yt.chocolatemoo53.com。使えなくなったら https://api.invidious.io で探して差し替える
+  home.activation.youtubeTuiConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] (let
+    main = pkgs.writeText "youtube-tui-main.yml" (builtins.toJSON {
+      mouse_support = true;
+      invidious_instance = "https://yt.chocolatemoo53.com";
+      write_config = "Try";
+      allow_unicode = true;
+      message_bar_default = "All good :)";
+      images = "HalfBlocks"; # cmux（Ghostty）は Sixel に対応していない
+      refresh_after_modifying_search_filters = true;
+      syncing = {
+        download_images = true;
+        sync_channel_info = true;
+        sync_channel_cooldown_secs = 86400;
+        sync_videos_cooldown_secs = 600;
       };
-    '';
+      limits = { watch_history = 50; search_history = 75; commands_history = 75; };
+      textbar_scroll_behaviour = "History";
+      image_index = 4;
+      provider = "YouTube";
+      search_provider = "RustyPipe"; # 検索は Invidious を通さず YouTube から直接
+      shell = "sh";
+      legacy_input_handling = false;
+      env = {
+        save-path = "~/.local/share/youtube-tui/saved/";
+        youtube-downloader = "${pkgsUnstable.yt-dlp}/bin/yt-dlp";
+        download-path = "~/Downloads/%(title)s-%(id)s.%(ext)s";
+        terminal-emulator = "env"; # 保存は新しいターミナルを開かずに裏で実行（既定は Linux の konsole）
+        video-player = "${ytplay}/bin/ytplay";
+        browser = "open"; # 既定のブラウザで開く（既定は xdg-open）
+      };
+    });
   in ''
-    dir="$HOME/.config/pipe-viewer"
+    dir="$HOME/.config/youtube-tui"
     mkdir -p "$dir"
-    install -m 644 ${conf} "$dir/pipe-viewer.conf"
+    rm -f "$dir/main.yml" "$dir/commands.yml" # 以前のリンク（読み取り専用）が残っていれば消す
+    install -m 644 ${main} "$dir/main.yml"
+    install -m 644 ${./youtube/commands.yml} "$dir/commands.yml"
   '');
 
   home.packages = with pkgs; [
@@ -69,7 +69,9 @@
     ffmpeg       # 動画・音声変換（Blu-ray → MP3 等）
     mkvtoolnix   # MKV 操作
     mpv          # 動画・音声プレーヤー（`mpv <ファイル>`）
-    pipe-viewer  # YouTube の検索・再生（`youtube`。上の pipeViewerConfig）
+    pkgsUnstable.youtube-tui # YouTube の操作画面（上の youtubeTuiConfig）
+    youtube                  # youtube-tui をサムネイルを消してから開く（上の let）
+    ytplay                   # YouTube を yt-dlp で取りながら mpv で再生（`ytplay [--no-video] [--term] <URL>`）
     # yt-dlp は YouTube 側の変更に追いつくため頻繁に更新されるので、新しい unstable の版を使う（25.05 の版では再生できない動画が多い）
     pkgsUnstable.yt-dlp
 
