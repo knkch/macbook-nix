@@ -5,8 +5,11 @@
   services.mpd = {
     enable = true;                       # macOS では launchd でログイン時に起動
     musicDirectory = "${config.home.homeDirectory}/Music/MyLibrary";
-    network.listenAddress = "127.0.0.1"; # このマシンからだけ操作できる（ポート 6600）
+    network.listenAddress = "127.0.0.1"; # このマシンからだけ操作できる（ポート 6600。mpc・sketchybar・ymuse）
+    # Unix ソケットも開く（rmpc はこちら）。ソケットでつないだ相手には、音楽フォルダの外のファイル（rmpc addyt で
+    # YouTube から落とした曲）も再生させてくれる。TCP だと mpd は音楽フォルダの中しか再生しない
     extraConfig = ''
+      bind_to_address "${config.home.homeDirectory}/.local/share/mpd/socket"
       audio_output {
         type        "osx"
         name        "CoreAudio"

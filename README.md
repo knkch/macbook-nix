@@ -191,6 +191,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | mpd | `services.mpd` | 再生の本体。`~/Music/MyLibrary` を CoreAudio で再生。ログイン時に起動 |
 | rmpc | `programs.rmpc` | TUI（`music`）。アルバムアート表示（Kitty 方式）・tokyonight テーマ。上の帯の下に操作キーの案内（`p` 再生/一時停止・`s` 停止・`<` `>` 前/次・`b` `f` 巻き戻し/早送り・`,` `.` 音量・`x` ランダム・`z` リピート・`~` キー一覧）。帯のクリックで再生/一時停止、スクロールで音量、進行バーのクリックでその位置へ |
 | mpc | `home.packages` | `mpc toggle` / `next` / `prev` / `update` |
+| YouTube の曲 | rmpc `addyt` | `rmpc addyt <URL>`（rmpc の画面では `:addyt <URL>`）で YouTube の音声を落として再生リストに追加。`~/.cache/rmpc/youtube/` に保存 |
 | ymuse | `home.packages`（`pkgs/ymuse`） | 無料の GUI（同じ mpd を操作）。`ymuse` か sketchybar の曲メニューから開く |
 
 > 曲を追加したら `mpc update`。じっくり聴くときは JRiver Media Center（ビットパーフェクト・サンプリングレート自動切り替え）。

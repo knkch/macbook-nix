@@ -4,10 +4,12 @@
 #![enable(unwrap_newtypes)]
 #![enable(unwrap_variant_newtypes)]
 (
-    address: "127.0.0.1:6600",
+    // mpd の Unix ソケット（home/music.nix）。YouTube の曲（addyt）を再生リストに入れるにはソケット接続が必要
+    address: "~/.local/share/mpd/socket",
     password: None,
     theme: Some("tokyonight"), // ~/.config/rmpc/themes/tokyonight.ron（home/rmpc/tokyonight.ron）
-    cache_dir: None,
+    // YouTube から落とした曲の置き場所（~/.cache/rmpc/youtube/）。`rmpc addyt <URL>` か、画面で `:addyt <URL>`
+    cache_dir: Some("~/.cache/rmpc/"),
     on_song_change: None,
     volume_step: 5,
     max_fps: 30,

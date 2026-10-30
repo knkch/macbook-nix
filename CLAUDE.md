@@ -39,7 +39,7 @@ rebuild   # zsh エイリアス
 | `home/nixvim.nix` | Neovim（nixvim）全設定 |
 | `home/desktop.nix` | AeroSpace 設定・Ghostty |
 | `home/vscode.nix` | VS Code の表示言語のみ（本体・拡張は Homebrew） |
-| `home/music.nix` | 音楽: mpd（`~/Music/MyLibrary`、CoreAudio、launchd で常駐。データ / ログのディレクトリは activation で作成）・rmpc（TUI）・mpc・ymuse（GUI）。エイリアス `music` = rmpc |
+| `home/music.nix` | 音楽: mpd（`~/Music/MyLibrary`、CoreAudio、launchd で常駐。データ / ログのディレクトリは activation で作成）・rmpc（TUI）・mpc・ymuse（GUI）。エイリアス `music` = rmpc。mpd は TCP 127.0.0.1:6600（mpc・sketchybar・ymuse）と Unix ソケット `~/.local/share/mpd/socket`（rmpc）の両方で待ち受ける |
 | `home/yazi.nix` | ファイルマネージャー Yazi（`yy` で開き、終了時にそのフォルダへ移動）。開き方: 写真 → open（プレビュー）、音声 → mpv をターミナル内で（`--no-video`）、動画 → mpv の別ウィンドウ（`O` でターミナル内 `--vo=kitty` も選べる） |
 | `home/rmpc/` | rmpc の設定 `config.ron`（0.8.0 の既定値 + アルバムアートは Kitty 方式を明示: cmux は TERM_PROGRAM を出さず自動判定で未対応になる）とテーマ `tokyonight.ron`（作者の公開設定を参考に、上に曲情報 2 行と、その下に操作キーの案内 1 行（表示だけ。rmpc は個別のボタンを置けない。ヘッダーの中は左・中央・右に 3 等分され切れるので、幅全体の `Property` ペインに置く）・下に進行バー、アート 35% / 再生リスト 65%） |
 | `pkgs/calendar/` | sketchybar の時計メニューのカレンダー画像を描く `render.py`（メニューを開くたびに約 0.25 秒）、予定の一覧・追加・編集・削除をする `event.js`（JXA + EventKit）、時間を選ぶ画面 `timepicker.js`（JXA + NSAlert / NSPopUpButton） |
@@ -323,6 +323,12 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
   - 試してやめたもの: 独自の再生コマンド（yt-dlp の出力を mpv に流し込む ytplay、cmux のペインで再生）は「標準の機能で」という方針で外した。
     pipe-viewer、ytfzf（TUI ではなく、検索も Invidious 頼み）も試した。
   ytfzf（検索して 1 本選ぶだけ、TUI ではない）は試して外した。
+- YouTube の曲を音楽の再生リストに: `rmpc addyt <URL>`（画面では `:addyt <URL>`）。yt-dlp で音声（opus）を
+  `~/.cache/rmpc/youtube/<ID>.opus` に落とし（曲名・アーティスト・サムネイルを埋め込む）、mpd の再生リストに追加する。
+  mpd は YouTube の URL を直接再生できない（再生用のリンクは数時間で切れる）ので、落とす必要がある。
+  mpd は TCP でつないだ相手には音楽フォルダの外のファイルを再生させないので、rmpc は Unix ソケットでつなぐ（home/music.nix・home/rmpc/config.ron）。
+  1 本ずつ（再生リストの URL は不可）。「python-mutagen が必要」という警告は Mac 標準の python3 を見ているだけで、埋め込みは yt-dlp 同梱の mutagen で動く。
+  落とした曲は自動では消えない（たまったら `~/.cache/rmpc/youtube/` を掃除）。
 - mpv を外から操作する TUI（mpvc / mpvc-tui）は nixpkgs で Linux 専用。必要なら自分でパッケージ化（シェルスクリプト + socat）。
 
 ---
