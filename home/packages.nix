@@ -1,49 +1,54 @@
 { lib, pkgs, pkgsUnstable, ... }:
 {
-  home.shellAliases.youtube = "youtube-tui"; # 「youtube」で操作画面を開く
+  home.shellAliases.youtube = "pipe-viewer"; # 「youtube」で検索・再生（番号を選ぶと再生。`youtube -n …` で音声だけ）
 
-  # youtube-tui の設定 main.yml（ほかの *.yml は初回起動時に既定のものが作られる）。
-  # youtube-tui は起動のたびに main.yml を書き直すので、読み取り専用のリンク（xdg.configFile）にすると検索が止まる。
-  # そのため rebuild のたびに、下の内容を普通のファイルとして書き込む（何回実行しても同じ内容になる）。
-  # 検索は YouTube から直接（RustyPipe）。Invidious（中継サーバー）は動画の詳細などに使う。公開サーバーの多くは
-  # 外部からの利用を止めていて、2026-10-30 時点で通ったのは yt.chocolatemoo53.com。使えなくなったら
-  # https://api.invidious.io で「api: true」のサーバーを探して差し替える（確かめ方: curl 'https://<サーバー>/api/v1/search?q=test' が JSON を返すか）
-  home.activation.youtubeTuiConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] (let
-    main = pkgs.writeText "youtube-tui-main.yml" (builtins.toJSON {
-    mouse_support = true;
-    invidious_instance = "https://yt.chocolatemoo53.com";
-    write_config = "Try";
-    allow_unicode = true;
-    message_bar_default = "All good :)";
-    images = "HalfBlocks"; # cmux（Ghostty）は Sixel に対応していない
-    refresh_after_modifying_search_filters = true;
-    syncing = {
-      download_images = true;
-      sync_channel_info = true;
-      sync_channel_cooldown_secs = 86400;
-      sync_videos_cooldown_secs = 600;
+  # YouTube: 検索は pipe-viewer（Invidious などの中継サーバーを使わず YouTube から直接）、再生は ytplay。
+  # mpv に YouTube の URL を渡す普通の再生（mpv が yt-dlp から受け取ったリンクを直接読む）は、多くの動画で
+  # 403 Forbidden になる（2026-10 時点）。yt-dlp 自身のダウンロードは通るので、yt-dlp の出力をそのまま mpv に流す。
+  # 標準入力ではなくプロセス置換で渡すので、mpv をターミナルのキー（space・← →・q など）で操作できる。
+  # youtube-tui は 0.8.1 が検索結果の -1 を読めず、0.9 は設定ファイルの扱いが不安定だったのでやめた（CLAUDE.md）
+  # 設定 ~/.config/pipe-viewer/pipe-viewer.conf は rebuild のたびに書き込む（pipe-viewer は足りない項目を補って
+  # 自分で書き直すので、読み取り専用のリンクにはしない）。
+  home.activation.pipeViewerConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] (let
+    ytplay = pkgs.writeShellApplication {
+      name = "ytplay";
+      runtimeInputs = [ pkgsUnstable.yt-dlp pkgs.mpv ];
+      text = ''
+        # ytplay [mpv のオプション…] <YouTube の URL>: yt-dlp で取りながら mpv で再生（--no-video なら音声だけ取る）
+        url="" fmt="bv*[height<=1080]+ba/b" args=()
+        for a in "$@"; do
+          case "$a" in
+            http*) url="$a" ;;
+            --no-video) fmt="ba/b"; args+=("$a") ;;
+            *) args+=("$a") ;;
+          esac
+        done
+        [ -n "$url" ] || { echo "使い方: ytplay [mpv のオプション…] <URL>" >&2; exit 2; }
+        # AV1 はハードウェアで再生できない Mac があるので、h264 → vp9 を優先する
+        mpv "''${args[@]}" <(yt-dlp -q --no-warnings -S "vcodec:h264,vcodec:vp9" -f "$fmt" -o - "$url")
+      '';
     };
-    limits = { watch_history = 50; search_history = 75; commands_history = 75; };
-    image_index = 4;
-    provider = "YouTube"; # 再生する URL は youtube.com（mpv が yt-dlp で取る）
-    search_provider = "RustyPipe"; # 検索は Invidious を通さず YouTube から直接（0.9 から）
-    textbar_scroll_behaviour = "History";
-    shell = "sh";
-    legacy_input_handling = false;
-    env = {
-      save-path = "~/.local/share/youtube-tui/saved/";
-      youtube-downloader = "yt-dlp";
-      download-path = "~/Downloads/%(title)s-%(id)s.%(ext)s";
-      terminal-emulator = "env"; # 保存は新しいターミナルを開かずに裏で実行（既定は Linux の konsole）
-      video-player = "mpv";
-      browser = "open"; # 既定のブラウザで開く（既定は firefox）
-    };
-  });
+    conf = pkgs.writeText "pipe-viewer.conf" ''
+      use utf8;
+
+      our $CONFIG = {
+        video_player_selected => "ytplay",
+        video_players => {
+          ytplay => {
+            cmd     => "${ytplay}/bin/ytplay",
+            arg     => "--force-media-title=*TITLE* *URL*",
+            fs      => "--fullscreen",
+            novideo => "--no-video",
+          },
+        },
+        ytdl     => 1,
+        ytdl_cmd => "${pkgsUnstable.yt-dlp}/bin/yt-dlp",
+      };
+    '';
   in ''
-    dir="$HOME/.config/youtube-tui"
+    dir="$HOME/.config/pipe-viewer"
     mkdir -p "$dir"
-    rm -f "$dir/main.yml" # 以前のリンク（読み取り専用）が残っていれば消す
-    install -m 644 ${main} "$dir/main.yml"
+    install -m 644 ${conf} "$dir/pipe-viewer.conf"
   '');
 
   home.packages = with pkgs; [
@@ -51,11 +56,9 @@
     ffmpeg       # 動画・音声変換（Blu-ray → MP3 等）
     mkvtoolnix   # MKV 操作
     mpv          # 動画・音声プレーヤー（`mpv <ファイル>`）
-    # YouTube の TUI。再生は mpv（`youtube`）。25.05 の 0.8.1 は Invidious が返す -1（Mix などの再生リストの動画数）を
-    # 読めず、検索の多くが「Cannot deserialize response: invalid value: integer `-1`, expected u32」で失敗する（0.9 系で修正）。
-    # 0.9 は Rust 1.88 以上が要り 25.05（1.86）ではビルドできないので unstable から取る。nixpkgs を 0.9 以上の版へ上げたら pkgs に戻す
-    pkgsUnstable.youtube-tui
-    yt-dlp       # mpv が YouTube などの動画を取るのに使う（youtube-tui の再生・保存にも必要）
+    pipe-viewer  # YouTube の検索・再生（`youtube`。上の pipeViewerConfig）
+    # yt-dlp は YouTube 側の変更に追いつくため頻繁に更新されるので、新しい unstable の版を使う（25.05 の版では再生できない動画が多い）
+    pkgsUnstable.yt-dlp
 
     # ── CLI ユーティリティ ────────────────────────────────────────────────── #
     ripgrep      # 高速 grep
