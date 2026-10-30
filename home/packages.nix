@@ -59,9 +59,10 @@ in
   in ''
     dir="$HOME/.config/youtube-tui"
     mkdir -p "$dir"
-    rm -f "$dir/main.yml" "$dir/commands.yml" # 以前のリンク（読み取り専用）が残っていれば消す
+    rm -f "$dir/main.yml" "$dir/commands.yml" "$dir/commandbindings.yml" # 以前のリンク（読み取り専用）が残っていれば消す
     install -m 644 ${main} "$dir/main.yml"
     install -m 644 ${./youtube/commands.yml} "$dir/commands.yml"
+    install -m 644 ${./youtube/commandbindings.yml} "$dir/commandbindings.yml"
   '');
 
   home.packages = with pkgs; [
