@@ -18,7 +18,7 @@ in
     echo "常駐プログラム"
     if pgrep -x sketchybar >/dev/null; then pass "sketchybar が動いている"
     else fail "sketchybar が動いていない" "launchctl kickstart -k gui/$(id -u)/org.nixos.sketchybar"; fi
-    for a in protected-reader menubar-click-guard; do
+    for a in protected-reader ax-agent menubar-click-guard; do
       if running "org.nixos.$a"; then pass "$a が動いている"
       else fail "$a が動いていない" "ログ: /tmp/$a.log（多くは、更新で場所が変わって許可の付け直しが必要）"; fi
     done
@@ -41,27 +41,18 @@ in
       fail "集中モードの状態: 読み取り結果がない" "protected-reader が一度も動いていない"
     fi
 
-    echo "標準メニューバーの項目（通知センターを開く・カメラの使用中の判定に使う）"
-    ids="$(osascript 2>&1 <<'AS'
-    set out to ""
-    tell application "System Events" to tell process "ControlCenter"
-      repeat with mi in menu bar items of menu bar 1
-        try
-          set out to out & (value of attribute "AXIdentifier" of mi) & linefeed
-        end try
-      end repeat
-    end tell
-    return out
-    AS
-    )"
-    if printf '%s' "$ids" | grep -qE -- '-1719|-25211|許可|not allowed|assistive'; then
-      maybe "確認できない" "このターミナルにアクセシビリティの許可がない"
-    else
-      for id in com.apple.menuextra.clock com.apple.menuextra.controlcenter; do
-        if printf '%s\n' "$ids" | grep -qx "$id"; then pass "$id がある"
-        else fail "$id が見つからない" "macOS の更新で識別子が変わった可能性（action.nix の click_menuextra・plugins/camera.nix）"; fi
-      done
-    fi
+    echo "アクセシビリティの操作（ax-agent。アプリのメニュー・通知センター・カメラの判定・入力ソース）"
+    ax() { printf '%s\n' "$*" | /usr/bin/nc -U -w 2 "$HOME/Library/Caches/sketchybar-ax/sock" 2>/dev/null; }
+    case "$(ax trusted)" in
+      1) pass "ax-agent にアクセシビリティの許可がある"
+         ids="$(ax extras)"
+         for id in com.apple.menuextra.clock com.apple.menuextra.controlcenter; do
+           if printf '%s\n' "$ids" | grep -qx "$id"; then pass "$id がある"
+           else fail "$id が見つからない" "macOS の更新で識別子が変わった可能性（pkgs/ax-agent/main.m）"; fi
+         done ;;
+      0) fail "ax-agent にアクセシビリティの許可がない" "プライバシーとセキュリティ > アクセシビリティ に $(launchctl print "gui/$(id -u)/org.nixos.ax-agent" 2>/dev/null | awk '/program = /{print $3; exit}') を追加" ;;
+      *) fail "ax-agent に頼めない" "ログ: /tmp/ax-agent.log" ;;
+    esac
 
     echo "集中モードのショートカット"
     ${focusShortcuts}/bin/focus-shortcuts --check >/dev/null 2>&1

@@ -11,6 +11,8 @@ rec {
     FG=0xffc0caf5; SUB=0xff9aa5ce; DIM=0xff565f89; ACCENT=0xff7aa2f7; GREEN=0xff9ece6a; RED=0xfff7768e
     POPUPS="apple front_app clock notify input battery volume bluetooth wifi vpn music"
     MPC=${pkgs.mpc}/bin/mpc
+    # アクセシビリティが必要な操作は ax-agent に頼む（pkgs/ax-agent。許可は ax-agent だけに与え、sketchybar には与えない）
+    ax() { printf '%s\n' "$*" | /usr/bin/nc -U -w 2 "$HOME/Library/Caches/sketchybar-ax/sock" 2>/dev/null; }
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
     NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"
     WIFI_SCAN="$HOME/Library/Caches/sketchybar-wifi-scan" # 直近のスキャン結果

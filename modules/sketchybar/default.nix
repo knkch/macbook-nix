@@ -53,6 +53,21 @@ in
     StandardErrorPath = "/tmp/protected-reader.log";
   };
 
+  # ── アクセシビリティの操作（ax-agent）──────────────────────────────────── #
+  # アプリのメニューを開く・通知センターを開く・カメラの使用中の判定・入力ソースのキー操作には
+  # アクセシビリティが要る。許可はこの常駐プログラムだけに与え、sketchybar には与えない（理由は上と同じ）。
+  # sketchybar は ~/Library/Caches/sketchybar-ax/sock（自分だけが使える）に頼む。できる操作は固定。pkgs/ax-agent
+  launchd.user.agents.ax-agent.serviceConfig = {
+    ProgramArguments = [
+      "${pkgs.callPackage ../../pkgs/ax-agent { }}/bin/ax-agent"
+      "${config.users.users.${user}.home}/Library/Caches/sketchybar-ax"
+    ];
+    RunAtLoad = true;
+    KeepAlive = true;
+    ThrottleInterval = 30;
+    StandardErrorPath = "/tmp/ax-agent.log";
+  };
+
   services.sketchybar = {
     enable = true;
     # topmost=on のバーは macOS のメニューバーアイコン（時計・コントロールセンター等）と同じ

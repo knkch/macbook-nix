@@ -128,6 +128,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 |--------|------|------|
 | AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
 | Sketchybar | `services.sketchybar`（パッチ版） | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ（クリックでそのアプリのメニュー）/ ノッチの左: 再生中の曲・右: CPU で走る猫 / 右: カメラ（使用中のみ）・VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー。詳細は CLAUDE.md） |
+| ax-agent | launchd ユーザーエージェント | アクセシビリティが必要な操作だけを sketchybar の代わりに行う（要アクセシビリティ。sketchybar には与えない） |
 | menubar-click-guard | launchd ユーザーエージェント | 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ（要アクセシビリティ） |
 | jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
 | Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
@@ -249,7 +250,7 @@ macOS が外からの設定を許していないため、`rebuild` では入れ�
 詳しい理由とパスは [CLAUDE.md](CLAUDE.md) の「冪等性と手作業の設定」。
 
 - [ ] protected-reader に **フルディスクアクセス**（通知一覧・集中モードの状態）。sketchybar には与えない
-- [ ] sketchybar に **アクセシビリティ**（通知センター・ビデオエフェクト・入力ソース・絵文字）
+- [ ] ax-agent に **アクセシビリティ**（アプリのメニュー・通知センター・ビデオエフェクト・カメラの判定・入力ソース・絵文字）。sketchybar には与えない
 - [ ] sketchybar に **Bluetooth**・**カレンダー**（初回に出る確認で許可）
 - [ ] menubar-click-guard と AeroSpace に **アクセシビリティ**
 - [ ] 標準の Space を各ディスプレイ 1 つに減らし、ログアウト

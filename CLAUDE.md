@@ -46,6 +46,7 @@ rebuild   # zsh エイリアス
 | `pkgs/ymuse/` | mpd の GUI ymuse の Mac 向け手直し: nixpkgs の SVG 読み込み部品（librsvg の `libpixbufloader_svg.dylib`）は `@rpath` が解決できず読めないため、コピーして librsvg の場所を書き込み・署名し直し、それを含む `loaders.cache` を使う（ないとボタンのアイコンが灰色の四角）。包み方を変えてアプリ名を `.ymuse-wrapped` でなく `ymuse` に |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
+| `pkgs/ax-agent/` | アクセシビリティが必要な操作（前面アプリのメニューを読む・開く、通知センター・ビデオエフェクトを開く、カメラの使用中の判定、⌃Space などのキー操作）だけを行う常駐プログラム（Objective-C）。sketchybar は `~/Library/Caches/sketchybar-ax/sock` に 1 行で頼む（`ax` 関数、lib.nix）。アクセシビリティはこれだけに与える |
 | `pkgs/protected-reader/` | 通知の履歴と集中モードの状態（保護領域）を読み、`~/Library/Caches/sketchybar-protected` に書き出す常駐プログラム（Objective-C）。フルディスクアクセスはこれだけに与える |
 | `pkgs/focus-shortcuts/` | 集中モードの切り替え用ショートカットを用意するコマンド `focus-shortcuts`。中身（署名前）は `gen.py` でビルド時に作り、署名と取り込みは実行時。モードの一覧は modules/sketchybar/shared.nix の `focusModes` |
 
@@ -133,7 +134,7 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 | 項目 | バーの表示 | メニュー |
 |------|------|------|
 | Apple | アイコン | この Mac について / システム設定 / ソフトウェアアップデート / App Store / アクティビティモニタ / スリープ / 画面ロック（`pmset displaysleepnow`）/ 再起動・システム終了・ログアウト（確認ダイアログ） |
-| 前面アプリ | アプリ名（緑） | そのアプリのメニュー（ファイル・編集…）の一覧。選ぶと隠れている標準メニューバーの項目をアクセシビリティ経由でクリックし、本物のメニューがバーのすぐ下に開く（`app-menu`。開いている間 osascript が戻らないので裏で実行）。メニューを検索（⌘⇧/ を送る） |
+| 前面アプリ | アプリ名（緑） | そのアプリのメニュー（ファイル・編集…）の一覧。メニューは ax-agent が読み、選ぶと ax-agent が隠れている標準メニューバーの項目を押して、本物のメニューがバーのすぐ下に開く（前面アプリのものだけ）。メニューを検索（⌘⇧/ を送る） |
 | VPN | Tailscale か他の VPN が接続中なら緑 | Tailscale の状態・接続/切断・出口ノード選択（CLI `/usr/local/bin/tailscale`）、システムの VPN 一覧をクリックで接続/切断（`scutil --nc`、Tailscale は除外）、VPN 設定 |
 | ネットワーク | 有線 > Wi-Fi の順でアイコンのみ | Wi-Fi オン/オフ、接続中のネットワーク、**周囲のネットワーク一覧**（CoreWLAN でスキャン、電波の強さ・鍵の有無をアイコン表示、クリックで接続。鍵ありで未登録ならパスワードを尋ねる）、有線 IP・Wi-Fi IP・ルーター・DNS、Wi-Fi / ネットワーク設定 |
 | Bluetooth | オフ / オン / 接続中で色分け（`blueutil`） | オン/オフ、ペアリング済みデバイスをクリックで接続/切断、Bluetooth 設定 |
@@ -142,8 +143,8 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 | 入力ソース | あ / A / カ など | 有効な入力ソース一覧（現在のものに印）、次の入力ソースへ（⌃Space を送る）、絵文字と記号、キーボード設定 |
 | 再生中の曲 | ノッチのすぐ左（`position q`）。再生中は曲名、一時停止中は薄く、停止中は「♪ 停止中」、曲名を隠すとアイコンだけ、mpd に接続できなければ「♪ オフ」 | アルバム・曲名・アーティスト、前の曲 / 再生・一時停止 / 次の曲（`mpc`）、ymuse を開く（cmux は外のプロセスからの操作を受け付けないため rmpc は開かない。どちらも同じ mpd を操作）。停止（表示も消える）、曲名を隠す（その曲のあいだだけアイコンのみ。`$TMPDIR/sketchybar-music-hidden` に曲を記録）。`mpc idle` のループで変化を待つ |
 | CPU で走る猫 | ノッチのすぐ右（`position e`） | RunCat 風（絵はオリジナル、`pkgs/runcat`）。CPU 使用率（`ps` の合計 / コア数）を約 1 秒ごとに測り、コマ間隔 0.2〜0.03 秒で走る速さを変える。右に使用率 |
-| カメラ | 使用中だけ表示（緑 + 「使用中」） | メニューなし。押すと使用中のカメラのビデオエフェクト（標準メニューバーの `com.apple.menuextra.audiovideo` をアクセシビリティでクリック）。使用状態はコントロールセンターの表示（`com.apple.menuextra.controlcenter` の説明に「カメラ」）で判定: AVFoundation の `isInUseByAnotherApplication` は sketchybar にカメラ許可がないと常に未使用を返す |
-| 通知（右端） | ベル + 赤いバッジ（消去後に届いた件数、10 件以上は 9+） | 最新 15 件の通知一覧（クリックでそのアプリを開く）・すべて消去、通知センターを開く（隠れた標準メニューバーの時計をアクセシビリティ経由でクリック）、通知設定、集中モード（下記）、ショートカットを追加（足りなければ `focus-shortcuts` で取り込み、そろっていればショートカットアプリを開く）、集中モード設定 |
+| カメラ | 使用中だけ表示（緑 + 「使用中」） | メニューなし。押すと使用中のカメラのビデオエフェクト（標準メニューバーの `com.apple.menuextra.audiovideo` を ax-agent が押す）。使用状態はコントロールセンターの表示（`com.apple.menuextra.controlcenter` の説明に「カメラ」）で判定: AVFoundation の `isInUseByAnotherApplication` は sketchybar にカメラ許可がないと常に未使用を返す |
+| 通知（右端） | ベル + 赤いバッジ（消去後に届いた件数、10 件以上は 9+） | 最新 15 件の通知一覧（クリックでそのアプリを開く）・すべて消去、通知センターを開く（隠れた標準メニューバーの時計を ax-agent が押す）、通知設定、集中モード（下記）、ショートカットを追加（足りなければ `focus-shortcuts` で取り込み、そろっていればショートカットアプリを開く）、集中モード設定 |
 | 時計 | 日付・曜日・時刻 | 大きな時刻（中央）、**画像で描く月カレンダー**（`pkgs/calendar/render.py`、Pillow + ヒラギノ。月送り・曜日・6 週の行を別々の画像に。日曜・祝日は赤、土曜は青、今日は塗りの丸、選んだ日は輪、予定のある日は右上に件数のバッジ、前後の月は薄く。祝日はカレンダー「日本の祝日」から）、**日付を押すとその日の予定**（最大 5 行。`event.js list` で読み、行を押すと**編集**（タイトル・時間・通知）/ **削除**。祝日など読み取り専用は不可）、**予定を追加…**（選んだ日に。タイトル → 時間（`pkgs/calendar/timepicker.js` の画面: 開始・終了を 15 分刻みのプルダウンで選ぶ / 終日のチェック）→ カレンダー → 通知（開始の何分前か。終日は当日 9 時。EKAlarm で付けるので macOS が通知を出す）を入力画面で尋ね、`pkgs/calendar/event.js` が EventKit で登録。カレンダーアプリは開かない）、カレンダーのアカウント（インターネットアカウント設定を開く。Google / Outlook を追加すると予定の表示・追加先になり同期される）、日付と時刻設定 |
 
 - sketchybar 本体はパッチ版（`services.sketchybar.package`）。`topmost=on` のバーのウィンドウレベルを
@@ -170,7 +171,8 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
   各項目のプラグイン `plugins/`（`build_menu` でメニューを作る）。各ファイルは `ctx`（全部の部品をまとめたもの）を受け取り、
   自分の部品を返す（`default.nix` で `lib.fix` を使ってまとめる）。ほかのファイルの部品は `inherit (ctx) …` で使う。
 - 部品を足したら `nix run nixpkgs#deadnix -- modules/sketchybar` で使っていない名前がないか確かめる。
-- 初回に許可が必要: Bluetooth（`blueutil`）、カレンダー（`icalBuddy`）、アクセシビリティ（通知センターを開く・入力ソース切り替え・絵文字）。いずれも sketchybar に対して許可する。
+- 初回に許可が必要: Bluetooth（`blueutil`）、カレンダー（`icalBuddy`）は sketchybar に対して許可する。
+  **アクセシビリティとフルディスクアクセスは sketchybar に与えない**（それぞれ ax-agent・protected-reader だけ。下記）。
   **フルディスクアクセスは sketchybar に与えない**（protected-reader だけ。下記）。
 - 接続中の SSID は位置情報保護で取れないため、今の接続のチャンネルと RSSI を直近のスキャン結果
   （`~/Library/Caches/sketchybar-wifi-scan`）と照らし合わせて推定する。スキャンは約 5 秒かかるので、
@@ -184,6 +186,12 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
     `~/Library/Caches/sketchybar-protected/` に書き出す（自分だけが読める。`notifications` = 最新 99 件、`focus` = オンの集中モード）。
   - 読むファイルはプログラムに固定（引数で変えられない）。通知が変わると `notify_update` を送るので、ベルのバッジはすぐ更新される。
   - 読めない理由は `/tmp/protected-reader.log`（`authorization denied` = 許可がない、`no such table / column` = macOS 側の形式が変わった）。
+- **アクセシビリティの操作は ax-agent に分けている**（pkgs/ax-agent、launchd のユーザーエージェント）。理由は protected-reader と同じ
+  （sketchybar にアクセシビリティを与えると、この Mac の何からでも画面を操作できてしまう）。
+  - sketchybar は `ax <操作>`（lib.nix。`nc -U` で `~/Library/Caches/sketchybar-ax/sock` に 1 行送る）で頼む。ソケットとディレクトリは自分だけが使える。
+  - できる操作は固定: `menus` / `menu-open <pid> <番号>`（前面アプリだけ）/ `extra-click clock|audiovideo` / `camera` / `key ime-next|emoji|menu-search` / `extras` / `trusted`。
+  - System Events（osascript）は使わない: Apple Events では許可の確認が osascript に対して行われ、sketchybar の許可が効かないため。
+  - 許可がないと `ERROR noaccess` を返し、`/tmp/ax-agent.log` に出す。点検は `sketchybar-doctor`。
 - 通知一覧は、protected-reader が通知センターのデータベース（`~/Library/Group Containers/group.com.apple.usernoted/db2/db`）から
   書き出したものを `notifList`（Python）で読む（読めない場合はメニューに案内を表示）。
   「すべて消去」は消去した時刻を `~/Library/Caches/sketchybar-notify-cleared` に記録して、それより前を表示しないだけ（macOS の通知センター側は消えない。DB は書き換えない）。
@@ -233,7 +241,7 @@ AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`
 |------|--------|------------|
 | Nix と Homebrew のインストール、このリポジトリを `~/.config/nix-darwin` に置く | ターミナル | rebuild の前提（README の「新しい Mac にセットアップする」） |
 | protected-reader に **フルディスクアクセス** | プライバシーとセキュリティ > フルディスクアクセス で「＋」→ ⌘⇧G でパスを入力 | 通知一覧・集中モードの状態を読む。パスは `launchctl print gui/$(id -u)/org.nixos.protected-reader \| grep program`。**sketchybar には与えない**（与えていたら外す） |
-| sketchybar に **アクセシビリティ** | 同 > アクセシビリティ | 通知センター・ビデオエフェクトを開く、入力ソース切り替え、絵文字 |
+| ax-agent に **アクセシビリティ** | 同 > アクセシビリティ | アプリのメニュー、通知センター・ビデオエフェクトを開く、カメラの判定、入力ソース切り替え、絵文字。パスは `launchctl print gui/$(id -u)/org.nixos.ax-agent \| grep program`。**sketchybar には与えない**（与えていたら外す） |
 | sketchybar に **Bluetooth**・**カレンダー** | 初回に出る確認で許可 | `blueutil`、`icalBuddy` / `event.js` |
 | menubar-click-guard に **アクセシビリティ** | プライバシーとセキュリティ > アクセシビリティ | パスは `/nix/store/…-menubar-click-guard-1.0/bin/menubar-click-guard`。許可がないと 30 秒ごとに再試行 |
 | AeroSpace に **アクセシビリティ** | 同上 | ウィンドウ操作 |
@@ -243,7 +251,7 @@ AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`
 | Blu-ray の `keydb.cfg` | `~/Library/Preferences/aacs/` に置く | FindVUK Online Database から手動ダウンロード |
 | Nix / Homebrew 管理外のアプリ | 各配布元 | 上の「Nix / Homebrew 管理外のアプリ」の表 |
 
-- sketchybar・menubar-click-guard・protected-reader は、パッケージが変わる（nix store のパスが変わる）と許可を付け直す必要がある。
+- sketchybar・menubar-click-guard・protected-reader・ax-agent は、パッケージが変わる（nix store のパスが変わる）と許可を付け直す必要がある。
   パスが変わるのは、そのプログラム自体か、ビルドに使う道具（`nix flake update` で nixpkgs を更新したときなど）が変わったときだけ。
   ふだんの設定変更（メニューの中身など）では変わらない。古いパスの許可は一覧に残るので、ときどき削除する。
 - 付け直しが必要かどうかは `sketchybar-doctor` で分かる（動いていない・読めない項目と、その直し方を表示）。
@@ -257,10 +265,30 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 |----------------|----------|------------------|
 | 通知センターのデータベースの形式（`record` / `app` テーブル、`req` の `titl` / `subt` / `body`） | pkgs/protected-reader | 通知一覧が「読めない」 |
 | 集中モードの状態ファイル `Assertions.json` の形式 | pkgs/protected-reader | 集中モードが常に ○ |
-| コントロールセンターの項目の識別子（`com.apple.menuextra.clock` / `.controlcenter` / `.audiovideo`） | action.nix・plugins/camera.nix | 通知センター・ビデオエフェクトが開かない、カメラが出ない |
+| コントロールセンターの項目の識別子（`com.apple.menuextra.clock` / `.controlcenter` / `.audiovideo`） | pkgs/ax-agent/main.m | 通知センター・ビデオエフェクトが開かない、カメラが出ない |
 | sketchybar 本体のソース（`bar_manager.c` の 1 行） | default.nix のパッチ | ビルドが失敗する（`--replace-fail`） |
 | 画面上端のクリックの扱い | pkgs/menubar-click-guard | 上端のクリックが標準メニューバーに抜ける |
 | ショートカットの「集中モードを設定」アクションの形式 | pkgs/focus-shortcuts/gen.py | 取り込んだショートカットが動かない |
+
+---
+
+## メディア（音楽・動画・写真）
+
+| 種類 | 裏で動くもの | 操作画面 | 起動 |
+|------|--------------|----------|------|
+| 音楽 | mpd（+ mpc） | rmpc（TUI）/ ymuse（GUI） | `music` / `ymuse`・sketchybar の曲メニュー |
+| YouTube | mpv | youtube-tui（TUI） | `youtube` |
+| 手元の動画・音声・写真 | mpv / プレビュー | Yazi（TUI） | `yy` |
+
+- rmpc: 操作ボタンを置く機能はない（0.8.0・最新の 0.11 とも。ヘッダーのクリックで再生/一時停止、スクロールで音量、
+  進行バーのクリックでその位置へ、だけ）。代わりにヘッダーの 3 行目に操作キーの案内を表示（home/rmpc/tokyonight.ron）。
+  ボタンで操作したいときは ymuse。
+- ymuse: Rigelian（有料・App Store）の代わり。無料で Mac で使える mpd の GUI はほぼこれだけ
+  （Cantata・myMPD・Plattenalbum・Sonata・mpdevil は nixpkgs で Linux 専用、Persephone は Homebrew から消えた）。
+  GTK なので見た目は Mac らしくない。`.app` はなく、コマンドで起動。iPhone から操作する手段はない。
+- youtube-tui: Invidious（中継サーバー）経由なので、サーバーの調子で検索が遅い・出ないことがある → 設定で別のサーバーに。
+  ytfzf（検索して 1 本選ぶだけ、TUI ではない）は試して外した。
+- mpv を外から操作する TUI（mpvc / mpvc-tui）は nixpkgs で Linux 専用。必要なら自分でパッケージ化（シェルスクリプト + socat）。
 
 ---
 
@@ -294,7 +322,11 @@ Workflow「Brew Cask Finder」で `cask {キーワード}` 検索。
 
 - protected-reader: 通知を読めなかったとき、ファイルを直接開いた結果（`Operation not permitted` = 許可がない）もログに出すと、
   `sketchybar-doctor` で原因がはっきりする。ただし直すとプログラムのパスが変わり許可の付け直しが要るので、
-  `nix flake update` など、どのみち付け直すときに一緒に入れる。
+  `nix flake update` など、どのみち付け直すときに一緒に入れる。ax-agent も同じ（直すと許可の付け直しが要る）。
+- 前面アプリのメニュー（sketchybar）: ax-agent の前面アプリの取得を AX（`kAXFocusedApplicationAttribute`、
+  launchd から動かすと取れなかった）から NSWorkspace に変えた。許可を付け直したあと、メニューの一覧・本物のメニューが開くことを確認する。
+- 未確認: Yazi の画像プレビューと mpv のターミナル内再生（`--vo=kitty`）が cmux で表示されるか。
+  出なければ rmpc と同じく Kitty 方式の明示が要るかもしれない。
 - nixpkgs / nix-darwin / home-manager 25.05 → 新しいリリースへ更新。
   その際 `programs.git.userName/userEmail` → `programs.git.settings.user.*`、
   `programs.git.delta` → `programs.delta` などの移行が必要。

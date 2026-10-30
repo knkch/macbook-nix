@@ -86,26 +86,8 @@ rec {
 
     pane() { open "x-apple.systempreferences:$1"; }
     refresh() { sleep "$1"; sketchybar --update; }
-    # click_menuextra <識別子>: 隠れている標準メニューバーの項目をアクセシビリティ経由でクリック
-    # （sketchybar にアクセシビリティの許可が必要。見つからなければ失敗を返す）
-    click_menuextra() {
-      [ "$(osascript - "$1" <<'AS' 2>/dev/null
-    on run argv
-      tell application "System Events" to tell process "ControlCenter"
-        repeat with mi in menu bar items of menu bar 1
-          try
-            if value of attribute "AXIdentifier" of mi is (item 1 of argv) then
-              click mi
-              return "ok"
-            end if
-          end try
-        end repeat
-      end tell
-      return ""
-    end run
-    AS
-    )" = ok ]
-    }
+    # click_menuextra <clock / audiovideo>: 隠れている標準メニューバーの項目をクリック（ax-agent に頼む。失敗なら偽）
+    click_menuextra() { [ "$(ax extra-click "$1")" = ok ]; }
 
     case "$1" in
       # Apple メニュー
@@ -150,9 +132,9 @@ rec {
       notify-settings)   pane com.apple.Notifications-Settings.extension ;;
       keyboard-settings) pane com.apple.Keyboard-Settings.extension ;;
 
-      # 入力ソース: キー操作を送る（sketchybar にアクセシビリティの許可が必要）
-      ime-next) osascript -e 'tell application "System Events" to key code 49 using control down' ;;
-      emoji)    osascript -e 'tell application "System Events" to key code 49 using {control down, command down}' ;;
+      # 入力ソース: キー操作を送る（ax-agent に頼む）
+      ime-next) ax key ime-next >/dev/null ;;
+      emoji)    ax key emoji >/dev/null ;;
       focus-settings)    pane com.apple.Focus-Settings.extension ;;
       # 「ショートカットを追加…」: focusModes のショートカットが足りなければ取り込み画面を開き、
       # そろっていればショートカットアプリを開く（自分で作るとき用）
@@ -160,22 +142,10 @@ rec {
         ${focusShortcuts}/bin/focus-shortcuts --check >/dev/null 2>&1
         if [ $? -eq 1 ]; then ${focusShortcuts}/bin/focus-shortcuts >/dev/null 2>&1; else open -a Shortcuts; fi ;;
       # アプリのメニュー（引数: pid と、メニューバーでの番号）。隠れている標準メニューバーの項目を
-      # アクセシビリティ経由でクリックして、本物のメニューを開く。メニューを閉じるまで戻らないことがあるので裏で実行
-      app-menu)
-        case "$2$3" in *[!0-9]* | "") exit 0 ;; esac
-        osascript - "$2" "$3" >/dev/null 2>&1 <<'AS' &
-    on run argv
-      tell application "System Events" to tell (first process whose unix id is (item 1 of argv as integer))
-        set frontmost to true
-        click menu bar item (item 2 of argv as integer) of menu bar 1
-      end tell
-    end run
-    AS
-        ;;
+      # ax-agent が押して、本物のメニューを開く（前面アプリのものだけ）
+      app-menu)        ax menu-open "$2" "$3" >/dev/null ;;
       # メニューの検索（ヘルプメニューの検索欄）を開く
-      app-menu-search)
-        sleep 0.1
-        osascript -e 'tell application "System Events" to keystroke "/" using {command down, shift down}' ;;
+      app-menu-search) sleep 0.1; ax key menu-search >/dev/null ;;
       open-app)          open -b "$2" ;; # 通知をクリック → そのアプリを開く
       # 通知を「すべて消去」: 今の時刻を記録して、メニューとベルの件数を作り直す（macOS 側の通知は残る）
       notify-clear)
@@ -262,7 +232,7 @@ rec {
 
       # 通知センター: 隠れている標準メニューバーの時計をクリックして開く（失敗したら通知設定を開く）
       nc-open)
-        click_menuextra com.apple.menuextra.clock || pane com.apple.Notifications-Settings.extension ;;
+        click_menuextra clock || pane com.apple.Notifications-Settings.extension ;;
 
       # 音量・オーディオデバイス（引数は一覧での番号）
       mute)
@@ -302,7 +272,7 @@ rec {
       # ビデオエフェクト（ポートレート・センターフレーム・背景など）: カメラ使用中だけ標準メニューバーに出る
       # 「オーディオとビデオのコントロール」をクリックして開く
       camera-effects)
-        click_menuextra com.apple.menuextra.audiovideo \
+        click_menuextra audiovideo \
           || notify_msg "ビデオエフェクト" "カメラを使っているときだけ開けます" ;;
 
       # Tailscale
