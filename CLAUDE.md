@@ -305,6 +305,8 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
   - 再生: mpv に YouTube の URL を渡す普通の方法（mpv が yt-dlp から受け取ったリンクを直接読む）は、2026-10 時点で多くの動画が
     `403 Forbidden`。yt-dlp 自身のダウンロードは通るので、ytplay が `mpv <(yt-dlp -o - …)` で流し込む
     （標準入力ではなくプロセス置換なので、mpv をターミナルのキーで操作できる）。h264 → vp9 を優先（AV1 はハードウェア再生できない Mac がある）。
+    流し込みなので、まだ受け取っていない先へは飛べない（受け取り済みの範囲は自由に戻る・進む）。
+  - `youtube-term`（pipe-viewer の `ytterm` プレーヤー）: `ytplay --term` で mpv の `--vo=kitty`。cmux / Ghostty の中に映す。480p で取る。
   - yt-dlp は **nixpkgs-unstable** の版（YouTube の変更に追いつくため頻繁に更新される。25.05 の 2025.11 版では再生できない動画が多い）。
     再生できなくなったら `nix flake update nixpkgs-unstable`。
   - 設定 `~/.config/pipe-viewer/pipe-viewer.conf` は activation で普通のファイルとして書き込む（再生に ytplay を使う指定だけ）。
@@ -320,7 +322,7 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 
 - zsh: autosuggestion / syntax highlighting。補完は home-manager の compinit と nix パッケージ同梱の補完を使用。
 - `<C-r>`: atuin（fzf の割当を上書き）/ `<C-t>`: fzf ファイル / `Alt-c`: fzf ディレクトリ
-- エイリアス: `rebuild`, `ll`, `lg`, `cat`(bat), `ls`(eza), `vlc-bd`, `music`(rmpc), `youtube`(pipe-viewer)
+- エイリアス: `rebuild`, `ll`, `lg`, `cat`(bat), `ls`(eza), `vlc-bd`, `music`(rmpc), `youtube`(pipe-viewer), `youtube-term`(ターミナル内で再生)
 - `yy`: Yazi（home/yazi.nix）。終了するとそのフォルダへ移動する
 - `vlc-bd`: `open --env JAVA_HOME=…openjdk@17 -a VLC`（`open` は通常の環境変数を引き継がないため `--env`）
 
