@@ -313,7 +313,8 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
     公開サーバーの多くは外部からの利用を止めていて、2026-10-30 時点で通ったのは `yt.chocolatemoo53.com`。使えなくなったら https://api.invidious.io で探す。
   - **再生はすべて ytplay**: mpv に YouTube の URL を渡す普通の方法（mpv が yt-dlp から受け取ったリンクを直接読む）は、2026-10 時点で
     多くの動画が `403 Forbidden`（mpv 0.41 + 最新 yt-dlp でも）。yt-dlp 自身のダウンロードは通るので `mpv <(yt-dlp -o - …)` で流し込む。
-    youtube-tui の既定は「音声だけ」などを組み込みの mpv（libmpv）で再生するので、home/youtube/commands.yml で全部 ytplay に置き換えた
+    youtube-tui の既定は「音声だけ」などを組み込みの mpv（libmpv）で、ショートカットキー（Ctrl+P など）は mpv を直接呼ぶので、
+    home/youtube/commands.yml・commandbindings.yml で全部 ytplay に置き換えた。組み込みの mpv を操作するキー（space・Ctrl+← →）は外した
     （音声だけのときも操作用に小さなウィンドウを出す）。
   - ytplay: `--no-video`（音声だけ）、`--term`（ターミナルの中に文字で描く。mpv の tct、360p）、`--loop`、`--shuffle`、
     再生リスト・チャンネルの URL は中の動画を順に、保存済みのファイルは mpv で直接。`q` で残りも止める（終了コード 9、ytplay-input.conf）。
