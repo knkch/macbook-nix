@@ -301,7 +301,12 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 - ymuse: Rigelian（有料・App Store）の代わり。無料で Mac で使える mpd の GUI はほぼこれだけ
   （Cantata・myMPD・Plattenalbum・Sonata・mpdevil は nixpkgs で Linux 専用、Persephone は Homebrew から消えた）。
   GTK なので見た目は Mac らしくない。`.app` はなく、コマンドで起動。iPhone から操作する手段はない。
-- youtube-tui: Invidious（中継サーバー）経由なので、サーバーの調子で検索が遅い・出ないことがある → 設定で別のサーバーに。
+- youtube-tui: 検索などは Invidious（中継サーバー）から取る。設定 `~/.config/youtube-tui/main.yml` は home/packages.nix で管理
+  （ほかの *.yml は初回起動時に既定のものが作られる）。公開サーバーの多くは外部からの検索を止めていて、
+  2026-10-30 時点で通ったのは `yt.chocolatemoo53.com` だけ（既定の vid.puffyan.us は停止済み）。
+  「Cannot deserialize response」が出たらサーバーが使えない → https://api.invidious.io で探して差し替える。
+  再生は mpv + **yt-dlp**（yt-dlp がないと YouTube を再生できない）。YouTube 側の変更で yt-dlp が古くなると再生できなくなる → `nix flake update`。
+  画像は HalfBlocks（cmux は Sixel 非対応）、ブラウザは `open`、保存は `env` で裏で実行（既定は Linux 向けの firefox / konsole）。
   ytfzf（検索して 1 本選ぶだけ、TUI ではない）は試して外した。
 - mpv を外から操作する TUI（mpvc / mpvc-tui）は nixpkgs で Linux 専用。必要なら自分でパッケージ化（シェルスクリプト + socat）。
 
