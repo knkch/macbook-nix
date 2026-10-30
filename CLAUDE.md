@@ -191,6 +191,8 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
   - sketchybar は `ax <操作>`（lib.nix。`nc -U` で `~/Library/Caches/sketchybar-ax/sock` に 1 行送る）で頼む。ソケットとディレクトリは自分だけが使える。
   - できる操作は固定: `menus` / `menu-open <pid> <番号>`（前面アプリだけ）/ `extra-click clock|audiovideo` / `camera` / `key ime-next|emoji|menu-search` / `extras` / `trusted`。
   - System Events（osascript）は使わない: Apple Events では許可の確認が osascript に対して行われ、sketchybar の許可が効かないため。
+  - sketchybar には**オートメーション（System Events）も与えない**（使っていない）。一覧に出たら画面からは外せない（.app でないため）ので
+    `tccutil reset AppleEvents`（全アプリのオートメーション許可を消す。cmux などは次に使うときにまた聞かれる）。
   - 許可がないと `ERROR noaccess` を返し、`/tmp/ax-agent.log` に出す。点検は `sketchybar-doctor`。
   - 前面アプリは NSWorkspace で取る（AX の `kAXFocusedApplicationAttribute` は launchd から動かすと取れなかった）。
 - 通知一覧は、protected-reader が通知センターのデータベース（`~/Library/Group Containers/group.com.apple.usernoted/db2/db`）から
