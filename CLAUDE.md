@@ -306,7 +306,9 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
     `403 Forbidden`。yt-dlp 自身のダウンロードは通るので、ytplay が `mpv <(yt-dlp -o - …)` で流し込む
     （標準入力ではなくプロセス置換なので、mpv をターミナルのキーで操作できる）。h264 → vp9 を優先（AV1 はハードウェア再生できない Mac がある）。
     流し込みなので、まだ受け取っていない先へは飛べない（受け取り済みの範囲は自由に戻る・進む）。
-  - `youtube-term`（pipe-viewer の `ytterm` プレーヤー）: `ytplay --term` で mpv の `--vo=kitty`。cmux / Ghostty の中に映す。480p で取る。
+  - `youtube-term`（pipe-viewer の `ytterm` プレーヤー）: `ytplay --term` で mpv の `--vo=tct`（色付きの半角ブロックで描く）。360p で取る。
+    `--vo=kitty` は cmux では映らない（mpv は大きさを正しく受け取り画像を送るが表示されず、強制終了することもある）。rmpc の静止画は Kitty 方式で出る。
+    流し込みなので `--start`（途中から再生）も使えない。
   - yt-dlp は **nixpkgs-unstable** の版（YouTube の変更に追いつくため頻繁に更新される。25.05 の 2025.11 版では再生できない動画が多い）。
     再生できなくなったら `nix flake update nixpkgs-unstable`。
   - 設定 `~/.config/pipe-viewer/pipe-viewer.conf` は activation で普通のファイルとして書き込む（再生に ytplay を使う指定だけ）。

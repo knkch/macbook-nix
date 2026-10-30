@@ -1,7 +1,7 @@
 { lib, pkgs, pkgsUnstable, ... }:
 {
   home.shellAliases.youtube = "pipe-viewer"; # 「youtube」で検索・再生（番号を選ぶと再生。`youtube -n …` で音声だけ）
-  home.shellAliases.youtube-term = "pipe-viewer --player=ytterm"; # 動画をターミナルの中に映す（cmux / Ghostty の Kitty 方式）
+  home.shellAliases.youtube-term = "pipe-viewer --player=ytterm"; # 動画をターミナルの中に文字で描く（mpv の tct）
 
   # YouTube: 検索は pipe-viewer（Invidious などの中継サーバーを使わず YouTube から直接）、再生は ytplay。
   # mpv に YouTube の URL を渡す普通の再生（mpv が yt-dlp から受け取ったリンクを直接読む）は、多くの動画で
@@ -16,7 +16,8 @@
       runtimeInputs = [ pkgsUnstable.yt-dlp pkgs.mpv ];
       text = ''
         # ytplay [--term] [mpv のオプション…] <YouTube の URL>: yt-dlp で取りながら mpv で再生
-        #   --no-video: 音声だけ取る / --term: ターミナルの中に映す（Kitty 方式。細かい画質は活きないので 480p）
+        #   --no-video: 音声だけ取る / --term: ターミナルの中に文字（色付きの半角ブロック）で描く。細かい画質は活きないので 360p。
+        #   Kitty 方式（--vo=kitty）は cmux では映らず、mpv が強制終了することもあったので使わない
         url="" fmt="bv*[height<=1080]+ba/b" args=() term=""
         for a in "$@"; do
           case "$a" in
@@ -28,8 +29,8 @@
         done
         [ -n "$url" ] || { echo "使い方: ytplay [--term] [mpv のオプション…] <URL>" >&2; exit 2; }
         if [ -n "$term" ] && [ "$fmt" != "ba/b" ]; then
-          fmt="bv*[height<=480]+ba/b"
-          args=(--vo=kitty --really-quiet "''${args[@]}")
+          fmt="bv*[height<=360]+ba/b"
+          args=(--vo=tct --really-quiet "''${args[@]}")
         fi
         # AV1 はハードウェアで再生できない Mac があるので、h264 → vp9 を優先する
         mpv "''${args[@]}" <(yt-dlp -q --no-warnings -S "vcodec:h264,vcodec:vp9" -f "$fmt" -o - "$url")

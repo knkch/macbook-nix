@@ -182,7 +182,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | `vlc-bd` | Blu-ray 再生用に OpenJDK 17 を指定して VLC を起動 |
 | `music` | rmpc（音楽の操作画面）を開く |
 | `youtube` | pipe-viewer（YouTube の検索・再生。`youtube <検索語>` → 番号で再生、`youtube -n …` で音声だけ） |
-| `youtube-term` | 同じく検索・再生し、動画をターミナルの中に映す（Kitty 方式、480p） |
+| `youtube-term` | 同じく検索・再生し、動画をターミナルの中に文字で描く（mpv の tct、360p） |
 | `yy` | Yazi（ファイルマネージャー）。終了するとそのフォルダへ移動。写真は Enter でプレビュー、音声はターミナルで再生、動画は mpv（`O` でターミナル内再生も選べる） |
 
 ### 音楽（`home/music.nix`）
