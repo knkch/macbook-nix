@@ -292,7 +292,7 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 | 種類 | 裏で動くもの | 操作画面 | 起動 |
 |------|--------------|----------|------|
 | 音楽 | mpd（+ mpc） | rmpc（TUI）/ ymuse（GUI） | `music` / `ymuse`・sketchybar の曲メニュー |
-| YouTube | yt-dlp → mpv（ytplay） | youtube-tui | `youtube` |
+| YouTube | mpv + yt-dlp | youtube-tui | `youtube` |
 | 手元の動画・音声・写真 | mpv / プレビュー | Yazi（TUI） | `yy` |
 
 - rmpc: 操作ボタンを置く機能はない（0.8.0・最新の 0.11 とも。ヘッダーのクリックで再生/一時停止、スクロールで音量、
@@ -301,32 +301,23 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 - ymuse: Rigelian（有料・App Store）の代わり。無料で Mac で使える mpd の GUI はほぼこれだけ
   （Cantata・myMPD・Plattenalbum・Sonata・mpdevil は nixpkgs で Linux 専用、Persephone は Homebrew から消えた）。
   GTK なので見た目は Mac らしくない。`.app` はなく、コマンドで起動。iPhone から操作する手段はない。
-- YouTube: **youtube-tui**（画面）+ **ytplay**（再生。home/youtube/ytplay.sh）。設定は home/packages.nix。
-  - youtube-tui は **0.9.4 を nixpkgs-unstable から**（25.05 の 0.8.1 は Invidious が返す -1（Mix などの動画数）を読めず
+- YouTube: **youtube-tui を標準の機能のまま**使う（独自の再生の仕組みは足さない方針）。設定は home/packages.nix。
+  - **0.9.4 を nixpkgs-unstable から**（25.05 の 0.8.1 は Invidious が返す -1（Mix などの動画数）を読めず
     「Cannot deserialize response: invalid value: integer `-1`, expected u32」。0.9 は Rust 1.88 以上が要り 25.05 ではビルドできない）。
-  - **`youtube` は youtube-tui を直接ではなく、サムネイルを消してから開く**: 0.9.4 は保存済みのサムネイル
-    （`~/.local/share/youtube-tui/thumbnails`）があると、次に起動したときの検索が「Loading search results...」のまま止まる
-    （サムネイルを保存しない設定 `download_images = false` でも保存される）。1 回の起動の中で 2 回目の検索が通るかは未確認。
-  - 設定 `main.yml`・`commands.yml` は activation で**普通のファイルとして書き込む**（youtube-tui は起動のたびに設定を書き直すので、
-    読み取り専用のリンクにすると検索が止まる）。search.yml などほかは youtube-tui が作る。
-  - 検索は YouTube から直接（`search_provider = RustyPipe`）。Invidious（`invidious_instance`）は動画の詳細などに使う。
-    公開サーバーの多くは外部からの利用を止めていて、2026-10-30 時点で通ったのは `yt.chocolatemoo53.com`。使えなくなったら https://api.invidious.io で探す。
-  - **再生はすべて ytplay**: mpv に YouTube の URL を渡す普通の方法（mpv が yt-dlp から受け取ったリンクを直接読む）は、2026-10 時点で
-    多くの動画が `403 Forbidden`（mpv 0.41 + 最新 yt-dlp でも）。yt-dlp 自身のダウンロードは通るので `mpv <(yt-dlp -o - …)` で流し込む。
-    youtube-tui の既定は「音声だけ」などを組み込みの mpv（libmpv）で、ショートカットキー（Ctrl+P など）は mpv を直接呼ぶので、
-    home/youtube/commands.yml・commandbindings.yml で全部 ytplay に置き換えた。組み込みの mpv を操作するキー（space・Ctrl+← →）は外した
-    （音声だけのときも操作用に小さなウィンドウを出す）。
-  - **動画はターミナルの中で再生**（「Play video」・Ctrl+P）: `ytplay --pane` が cmux の `new-split down` で youtube-tui の下にペインを開き、
-    その中で `--term` 再生する（終わるか q で閉じる）。youtube-tui の画面の上で直接再生（`run`）すると、mpv が終わるときに
-    代替画面から抜けて youtube-tui の表示が崩れ、youtube-tui には画面を消して描き直す命令がない（`back` の中だけ）ため。
-    cmux の外では `--term` と同じ（その場で再生）。別ウィンドウは「Play video (window)」。音声だけは裏で再生（小さなウィンドウ）。
-    youtube-tui の `run`・`parrun` はどちらも子の出力を捨てるので、`--term` は `/dev/tty` につなぎ直して描く。
-  - ytplay: `--no-video`（音声だけ）、`--term`（ターミナルの中に文字で描く。mpv の tct、360p）、`--pane`、`--loop`、`--shuffle`、
-    再生リスト・チャンネルの URL は中の動画を順に、保存済みのファイルは mpv で直接。`q` で残りも止める（終了コード 9、ytplay-input.conf）。
-    流し込みなので、まだ受け取っていない先へは飛べず、`--start` も使えない。h264 → vp9 を優先（AV1 はハードウェア再生できない Mac がある）。
-  - `--vo=kitty` は cmux では映らない（mpv は画像を送るが表示されず、強制終了することもある）。rmpc の静止画は Kitty 方式で出る。
-  - yt-dlp は nixpkgs-unstable の版（YouTube の変更に追いつくため）。再生できなくなったら `nix flake update nixpkgs-unstable`。
-  - 試してやめたもの: pipe-viewer（検索は安定していたが youtube-tui に戻した）、ytfzf（TUI ではなく、検索も Invidious 頼み）。
+  - 設定 `main.yml` だけを activation で**普通のファイルとして書き込む**（youtube-tui は起動のたびに設定を書き直すので、
+    読み取り専用のリンクにすると検索が「Loading…」のまま止まる）。ほかの *.yml は youtube-tui が作る既定のまま。
+    変えているのは Mac 向けの値だけ: Invidious のサーバー、画像 HalfBlocks（cmux は Sixel 非対応）、ブラウザ `open`、
+    保存を裏で実行（`terminal-emulator = env`、既定は Linux の konsole）、検索は YouTube から直接（`search_provider = RustyPipe`）。
+  - Invidious: 公開サーバーの多くは外部からの利用を止めていて、2026-10-30 時点で通ったのは `yt.chocolatemoo53.com`
+    （既定の vid.puffyan.us は停止済み）。使えなくなったら https://api.invidious.io で探す。
+  - **わかっている制限（2026-10-30）**:
+    - 再生は標準どおり mpv（+ yt-dlp）。mpv に YouTube の URL を渡す再生は、**多くの動画で `403 Forbidden`** になる
+      （mpv 0.41 + yt-dlp 2026.10 でも。yt-dlp 自身のダウンロードは通る）。YouTube 側の変更で、yt-dlp / mpv の更新で直る可能性がある → `nix flake update nixpkgs-unstable`。
+    - 0.9.4 は保存済みのサムネイル（`~/.local/share/youtube-tui/thumbnails`）があると、次に起動したときの検索が止まる
+      （`download_images = false` でも保存される）。止まったらこのフォルダを消す。
+  - yt-dlp は nixpkgs-unstable の版（YouTube の変更に追いつくため）。
+  - 試してやめたもの: 独自の再生コマンド（yt-dlp の出力を mpv に流し込む ytplay、cmux のペインで再生）は「標準の機能で」という方針で外した。
+    pipe-viewer、ytfzf（TUI ではなく、検索も Invidious 頼み）も試した。
   ytfzf（検索して 1 本選ぶだけ、TUI ではない）は試して外した。
 - mpv を外から操作する TUI（mpvc / mpvc-tui）は nixpkgs で Linux 専用。必要なら自分でパッケージ化（シェルスクリプト + socat）。
 
@@ -336,7 +327,7 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 
 - zsh: autosuggestion / syntax highlighting。補完は home-manager の compinit と nix パッケージ同梱の補完を使用。
 - `<C-r>`: atuin（fzf の割当を上書き）/ `<C-t>`: fzf ファイル / `Alt-c`: fzf ディレクトリ
-- エイリアス: `rebuild`, `ll`, `lg`, `cat`(bat), `ls`(eza), `vlc-bd`, `music`(rmpc), `youtube`(youtube-tui), `ytplay`(YouTube を再生)
+- エイリアス: `rebuild`, `ll`, `lg`, `cat`(bat), `ls`(eza), `vlc-bd`, `music`(rmpc), `youtube`(youtube-tui)
 - `yy`: Yazi（home/yazi.nix）。終了するとそのフォルダへ移動する
 - `vlc-bd`: `open --env JAVA_HOME=…openjdk@17 -a VLC`（`open` は通常の環境変数を引き継がないため `--env`）
 
