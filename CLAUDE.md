@@ -39,9 +39,11 @@ rebuild   # zsh エイリアス
 | `home/nixvim.nix` | Neovim（nixvim）全設定 |
 | `home/desktop.nix` | AeroSpace 設定・Ghostty |
 | `home/vscode.nix` | VS Code の表示言語のみ（本体・拡張は Homebrew） |
-| `home/music.nix` | 音楽: mpd（`~/Music/MyLibrary`、CoreAudio、launchd で常駐。データ / ログのディレクトリは activation で作成）・rmpc（TUI）・mpc。エイリアス `music` = rmpc |
-| `home/rmpc/` | rmpc の設定 `config.ron`（0.8.0 の既定値 + アルバムアートは Kitty 方式を明示: cmux は TERM_PROGRAM を出さず自動判定で未対応になる）とテーマ `tokyonight.ron`（作者の公開設定を参考に、上に曲情報・下に進行バー、アート 35% / 再生リスト 65%） |
+| `home/music.nix` | 音楽: mpd（`~/Music/MyLibrary`、CoreAudio、launchd で常駐。データ / ログのディレクトリは activation で作成）・rmpc（TUI）・mpc・ymuse（GUI）。エイリアス `music` = rmpc |
+| `home/yazi.nix` | ファイルマネージャー Yazi（`yy` で開き、終了時にそのフォルダへ移動）。開き方: 写真 → open（プレビュー）、音声 → mpv をターミナル内で（`--no-video`）、動画 → mpv の別ウィンドウ（`O` でターミナル内 `--vo=kitty` も選べる） |
+| `home/rmpc/` | rmpc の設定 `config.ron`（0.8.0 の既定値 + アルバムアートは Kitty 方式を明示: cmux は TERM_PROGRAM を出さず自動判定で未対応になる）とテーマ `tokyonight.ron`（作者の公開設定を参考に、上に曲情報 2 行と操作キーの案内 1 行（表示だけ。rmpc は個別のボタンを置けない）・下に進行バー、アート 35% / 再生リスト 65%） |
 | `pkgs/calendar/` | sketchybar の時計メニューのカレンダー画像を描く `render.py`（メニューを開くたびに約 0.25 秒）、予定の一覧・追加・編集・削除をする `event.js`（JXA + EventKit）、時間を選ぶ画面 `timepicker.js`（JXA + NSAlert / NSPopUpButton） |
+| `pkgs/ymuse/` | mpd の GUI ymuse の Mac 向け手直し: nixpkgs の SVG 読み込み部品（librsvg の `libpixbufloader_svg.dylib`）は `@rpath` が解決できず読めないため、コピーして librsvg の場所を書き込み・署名し直し、それを含む `loaders.cache` を使う（ないとボタンのアイコンが灰色の四角）。包み方を変えてアプリ名を `.ymuse-wrapped` でなく `ymuse` に |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
 | `pkgs/protected-reader/` | 通知の履歴と集中モードの状態（保護領域）を読み、`~/Library/Caches/sketchybar-protected` に書き出す常駐プログラム（Objective-C）。フルディスクアクセスはこれだけに与える |
@@ -90,7 +92,6 @@ rebuild   # zsh エイリアス
 | Windows App | 1295203466 | 旧 Microsoft Remote Desktop |
 | Microsoft Excel | 462058435 | |
 | Brother iPrint&Scan | 1193539993 | |
-| Rigelian | 1363775934 | mpd の GUI 操作アプリ（有料。mpd は 127.0.0.1 待ち受けなので、iPhone 版から使うには listenAddress の変更が必要） |
 
 > macSKK / XLD は mas インストール失敗のため cask で管理。
 > webex は App Store 版もあるが、画面共有・マイク権限問題のため cask。zoom も cask で管理。
@@ -132,13 +133,14 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 | 項目 | バーの表示 | メニュー |
 |------|------|------|
 | Apple | アイコン | この Mac について / システム設定 / ソフトウェアアップデート / App Store / アクティビティモニタ / スリープ / 画面ロック（`pmset displaysleepnow`）/ 再起動・システム終了・ログアウト（確認ダイアログ） |
+| 前面アプリ | アプリ名（緑） | そのアプリのメニュー（ファイル・編集…）の一覧。選ぶと隠れている標準メニューバーの項目をアクセシビリティ経由でクリックし、本物のメニューがバーのすぐ下に開く（`app-menu`。開いている間 osascript が戻らないので裏で実行）。メニューを検索（⌘⇧/ を送る） |
 | VPN | Tailscale か他の VPN が接続中なら緑 | Tailscale の状態・接続/切断・出口ノード選択（CLI `/usr/local/bin/tailscale`）、システムの VPN 一覧をクリックで接続/切断（`scutil --nc`、Tailscale は除外）、VPN 設定 |
 | ネットワーク | 有線 > Wi-Fi の順でアイコンのみ | Wi-Fi オン/オフ、接続中のネットワーク、**周囲のネットワーク一覧**（CoreWLAN でスキャン、電波の強さ・鍵の有無をアイコン表示、クリックで接続。鍵ありで未登録ならパスワードを尋ねる）、有線 IP・Wi-Fi IP・ルーター・DNS、Wi-Fi / ネットワーク設定 |
 | Bluetooth | オフ / オン / 接続中で色分け（`blueutil`） | オン/オフ、ペアリング済みデバイスをクリックで接続/切断、Bluetooth 設定 |
 | 音量 | スクロールで音量調整 | 出力音量スライダー（右に %）・ミュート・出力デバイス選択、入力音量スライダー（右に %）・入力デバイス選択（`SwitchAudioSource`）、サウンド設定 |
 | 電池 | 残量 | 残量・電源・残り時間、**電力モード**（自動 / 低電力 / 高出力をバッテリー・電源アダプタ別に。`pmset powermode`、変更時に管理者パスワードの画面が出る）、アクティビティモニタ、バッテリー設定 |
 | 入力ソース | あ / A / カ など | 有効な入力ソース一覧（現在のものに印）、次の入力ソースへ（⌃Space を送る）、絵文字と記号、キーボード設定 |
-| 再生中の曲 | ノッチのすぐ左（`position q`）。再生中は曲名、一時停止中は薄く、停止中は「♪ 停止中」、曲名を隠すとアイコンだけ、mpd に接続できなければ「♪ オフ」 | アルバム・曲名・アーティスト、前の曲 / 再生・一時停止 / 次の曲（`mpc`）、Rigelian を開く（cmux は外のプロセスからの操作を受け付けないため rmpc は開かない。どちらも同じ mpd を操作）。停止（表示も消える）、曲名を隠す（その曲のあいだだけアイコンのみ。`$TMPDIR/sketchybar-music-hidden` に曲を記録）。`mpc idle` のループで変化を待つ |
+| 再生中の曲 | ノッチのすぐ左（`position q`）。再生中は曲名、一時停止中は薄く、停止中は「♪ 停止中」、曲名を隠すとアイコンだけ、mpd に接続できなければ「♪ オフ」 | アルバム・曲名・アーティスト、前の曲 / 再生・一時停止 / 次の曲（`mpc`）、ymuse を開く（cmux は外のプロセスからの操作を受け付けないため rmpc は開かない。どちらも同じ mpd を操作）。停止（表示も消える）、曲名を隠す（その曲のあいだだけアイコンのみ。`$TMPDIR/sketchybar-music-hidden` に曲を記録）。`mpc idle` のループで変化を待つ |
 | CPU で走る猫 | ノッチのすぐ右（`position e`） | RunCat 風（絵はオリジナル、`pkgs/runcat`）。CPU 使用率（`ps` の合計 / コア数）を約 1 秒ごとに測り、コマ間隔 0.2〜0.03 秒で走る速さを変える。右に使用率 |
 | カメラ | 使用中だけ表示（緑 + 「使用中」） | メニューなし。押すと使用中のカメラのビデオエフェクト（標準メニューバーの `com.apple.menuextra.audiovideo` をアクセシビリティでクリック）。使用状態はコントロールセンターの表示（`com.apple.menuextra.controlcenter` の説明に「カメラ」）で判定: AVFoundation の `isInUseByAnotherApplication` は sketchybar にカメラ許可がないと常に未使用を返す |
 | 通知（右端） | ベル + 赤いバッジ（消去後に届いた件数、10 件以上は 9+） | 最新 15 件の通知一覧（クリックでそのアプリを開く）・すべて消去、通知センターを開く（隠れた標準メニューバーの時計をアクセシビリティ経由でクリック）、通知設定、集中モード（下記）、ショートカットを追加（足りなければ `focus-shortcuts` で取り込み、そろっていればショートカットアプリを開く）、集中モード設定 |
@@ -266,7 +268,8 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 
 - zsh: autosuggestion / syntax highlighting。補完は home-manager の compinit と nix パッケージ同梱の補完を使用。
 - `<C-r>`: atuin（fzf の割当を上書き）/ `<C-t>`: fzf ファイル / `Alt-c`: fzf ディレクトリ
-- エイリアス: `rebuild`, `ll`, `lg`, `cat`(bat), `ls`(eza), `vlc-bd`
+- エイリアス: `rebuild`, `ll`, `lg`, `cat`(bat), `ls`(eza), `vlc-bd`, `music`(rmpc), `youtube`(youtube-tui)
+- `yy`: Yazi（home/yazi.nix）。終了するとそのフォルダへ移動する
 - `vlc-bd`: `open --env JAVA_HOME=…openjdk@17 -a VLC`（`open` は通常の環境変数を引き継がないため `--env`）
 
 ---

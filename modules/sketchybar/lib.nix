@@ -9,7 +9,7 @@ rec {
   # 項目名は「<親>.dyn.<名前>」。クリック時の操作は $ACTION（action スクリプト）に渡す。
   shLib = pkgs.writeText "sketchybar-lib.sh" ''
     FG=0xffc0caf5; SUB=0xff9aa5ce; DIM=0xff565f89; ACCENT=0xff7aa2f7; GREEN=0xff9ece6a; RED=0xfff7768e
-    POPUPS="apple clock notify input battery volume bluetooth wifi vpn music"
+    POPUPS="apple front_app clock notify input battery volume bluetooth wifi vpn music"
     MPC=${pkgs.mpc}/bin/mpc
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
     NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"

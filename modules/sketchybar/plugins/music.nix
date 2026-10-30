@@ -35,7 +35,7 @@ rec {
         menu_item $p toggle "󰐊" "再生"             music-toggle
       fi
       menu_item $p next   "󰒭" "次の曲"            music-next
-      menu_item $p open   "󰏌" "Rigelian を開く"         music-open
+      menu_item $p open   "󰏌" "ymuse を開く"            music-open
       menu_item $p stop   "󰓛" "停止"                      music-stop
       menu_item $p hide   "󰈉" "曲名を隠す（次の曲で再表示）"   music-hide
     }

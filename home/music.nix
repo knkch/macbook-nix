@@ -1,6 +1,6 @@
 { config, lib, pkgs, ... }:
 {
-  # ── 音楽: mpd（再生の本体・常駐）+ rmpc（TUI。アルバムアート対応）+ mpc（コマンドで操作）── #
+  # ── 音楽: mpd（再生の本体・常駐）+ rmpc（TUI。アルバムアート対応）+ mpc（コマンドで操作）+ ymuse（GUI）── #
   # 曲は ~/Music/MyLibrary（アーティスト別のフォルダ。ほぼ FLAC）
   services.mpd = {
     enable = true;                       # macOS では launchd でログイン時に起動
@@ -28,7 +28,10 @@
   };
   xdg.configFile."rmpc/themes/tokyonight.ron".source = ./rmpc/tokyonight.ron;
 
-  home.packages = [ pkgs.mpc ]; # mpc toggle / next / prev / update など
+  home.packages = [
+    pkgs.mpc                              # mpc toggle / next / prev / update など
+    (pkgs.callPackage ../pkgs/ymuse { })  # GUI（`ymuse`）。同じ mpd を操作。Mac 向けの手直しは pkgs/ymuse
+  ];
 
   home.shellAliases.music = "rmpc"; # 「music」で操作画面を開く
 }

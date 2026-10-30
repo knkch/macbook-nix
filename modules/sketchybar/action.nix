@@ -1,7 +1,7 @@
 # メニューの行を押したときの操作（sketchybar-action）
 ctx:
 let
-  inherit (ctx) blueutil calEvent calTimePicker focusShortcuts plugin sas shLib tailscale;
+  inherit (ctx) blueutil calEvent calTimePicker focusShortcuts plugin sas shLib tailscale ymuse;
 in
 rec {
   # ── メニュー項目から呼ぶ操作 ──────────────────────────────────────────── #
@@ -137,9 +137,9 @@ rec {
       music-hide)
         $MPC current -f '%file%' > "''${TMPDIR:-/tmp}/sketchybar-music-hidden" 2>/dev/null
         sketchybar --trigger music_update ;;
-      # mpd の GUI（Rigelian）を開く。rmpc と同じ mpd を操作するので再生リストも共通
+      # mpd の GUI（ymuse）を開く。rmpc と同じ mpd を操作するので再生リストも共通。すでに開いていればそのウィンドウを出す
       # （cmux は外のプロセスからの操作を受け付けないので、rmpc を開く方式はやめた）
-      music-open)   open -a Rigelian ;;
+      music-open)   nohup ${ymuse} >/dev/null 2>&1 & ;;
       # 電力モードの変更（引数: b / c と 0 / 1 / 2）。管理者のパスワードを macOS の画面で尋ねる
       power-mode)
         case "$2$3" in b0|b1|b2|c0|c1|c2) ;; *) exit 0 ;; esac
@@ -159,6 +159,23 @@ rec {
       shortcuts-app)
         ${focusShortcuts}/bin/focus-shortcuts --check >/dev/null 2>&1
         if [ $? -eq 1 ]; then ${focusShortcuts}/bin/focus-shortcuts >/dev/null 2>&1; else open -a Shortcuts; fi ;;
+      # アプリのメニュー（引数: pid と、メニューバーでの番号）。隠れている標準メニューバーの項目を
+      # アクセシビリティ経由でクリックして、本物のメニューを開く。メニューを閉じるまで戻らないことがあるので裏で実行
+      app-menu)
+        case "$2$3" in *[!0-9]* | "") exit 0 ;; esac
+        osascript - "$2" "$3" >/dev/null 2>&1 <<'AS' &
+    on run argv
+      tell application "System Events" to tell (first process whose unix id is (item 1 of argv as integer))
+        set frontmost to true
+        click menu bar item (item 2 of argv as integer) of menu bar 1
+      end tell
+    end run
+    AS
+        ;;
+      # メニューの検索（ヘルプメニューの検索欄）を開く
+      app-menu-search)
+        sleep 0.1
+        osascript -e 'tell application "System Events" to keystroke "/" using {command down, shift down}' ;;
       open-app)          open -b "$2" ;; # 通知をクリック → そのアプリを開く
       # 通知を「すべて消去」: 今の時刻を記録して、メニューとベルの件数を作り直す（macOS 側の通知は残る）
       notify-clear)

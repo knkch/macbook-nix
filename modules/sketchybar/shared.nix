@@ -26,6 +26,7 @@ rec {
   blueutil  = "${pkgs.blueutil}/bin/blueutil";
   sas       = "${pkgs.switchaudio-osx}/bin/SwitchAudioSource";
   jq        = "${pkgs.jq}/bin/jq";
+  ymuse     = "${pkgs.callPackage ../../pkgs/ymuse { }}/bin/ymuse"; # mpd の GUI
   tailscale = "/usr/local/bin/tailscale"; # Tailscale.app（App Store 版）が置く CLI
 
   # Wi-Fi: 周囲のネットワークをスキャン（CoreWLAN）。同じ名前は電波の強いものだけ、強い順

@@ -9,6 +9,7 @@
     ./desktop.nix
     ./vscode.nix
     ./music.nix
+    ./yazi.nix
   ];
 
   # ── User / Home ─────────────────────────────────────────────────────────── #

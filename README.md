@@ -79,6 +79,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
     ├── desktop.nix        # AeroSpace・Ghostty
     ├── music.nix          # mpd・rmpc・mpc
     ├── rmpc/              # rmpc の設定とテーマ（tokyonight）
+    ├── yazi.nix           # Yazi（ファイルの開き方: 動画・音声は mpv）
     └── vscode.nix         # VS Code 表示言語
 ```
 
@@ -126,7 +127,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | ツール | 管理 | 概要 |
 |--------|------|------|
 | AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
-| Sketchybar | `services.sketchybar`（パッチ版） | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ / ノッチの左: 再生中の曲・右: CPU で走る猫 / 右: カメラ（使用中のみ）・VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー。詳細は CLAUDE.md） |
+| Sketchybar | `services.sketchybar`（パッチ版） | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ（クリックでそのアプリのメニュー）/ ノッチの左: 再生中の曲・右: CPU で走る猫 / 右: カメラ（使用中のみ）・VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー。詳細は CLAUDE.md） |
 | menubar-click-guard | launchd ユーザーエージェント | 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ（要アクセシビリティ） |
 | jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
 | Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
@@ -179,15 +180,17 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | `lg` | lazygit |
 | `vlc-bd` | Blu-ray 再生用に OpenJDK 17 を指定して VLC を起動 |
 | `music` | rmpc（音楽の操作画面）を開く |
+| `youtube` | youtube-tui（YouTube の操作画面。再生は mpv）を開く |
+| `yy` | Yazi（ファイルマネージャー）。終了するとそのフォルダへ移動。写真は Enter でプレビュー、音声はターミナルで再生、動画は mpv（`O` でターミナル内再生も選べる） |
 
 ### 音楽（`home/music.nix`）
 
 | ツール | 管理 | 概要 |
 |--------|------|------|
 | mpd | `services.mpd` | 再生の本体。`~/Music/MyLibrary` を CoreAudio で再生。ログイン時に起動 |
-| rmpc | `programs.rmpc` | TUI（`music`）。アルバムアート表示（Kitty 方式）・tokyonight テーマ |
+| rmpc | `programs.rmpc` | TUI（`music`）。アルバムアート表示（Kitty 方式）・tokyonight テーマ。上の帯に操作キーの案内（`p` 再生/一時停止・`s` 停止・`<` `>` 前/次・`b` `f` 巻き戻し/早送り・`,` `.` 音量・`x` ランダム・`z` リピート・`~` キー一覧）。帯のクリックで再生/一時停止、スクロールで音量、進行バーのクリックでその位置へ |
 | mpc | `home.packages` | `mpc toggle` / `next` / `prev` / `update` |
-| Rigelian | masApps | GUI（同じ mpd を操作）。sketchybar の曲メニューから開く |
+| ymuse | `home.packages`（`pkgs/ymuse`） | 無料の GUI（同じ mpd を操作）。`ymuse` か sketchybar の曲メニューから開く |
 
 > 曲を追加したら `mpc update`。じっくり聴くときは JRiver Media Center（ビットパーフェクト・サンプリングレート自動切り替え）。
 
@@ -230,7 +233,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | ツール | 概要 |
 |--------|------|
 | WireGuard / Tailscale | VPN（App Store 版） |
-| Slack / Windows App / Microsoft Excel / Brother iPrint&Scan / Rigelian | App Store 版 |
+| Slack / Windows App / Microsoft Excel / Brother iPrint&Scan | App Store 版 |
 
 ### Nix / Homebrew 管理外のアプリ
 
@@ -281,7 +284,7 @@ macOS が外からの設定を許していないため、`rebuild` では入れ�
 - **sketchybar**: 本体をパッチ版にしてメニューバーより手前に表示。高さ 33・不透明・ノッチ幅 186。標準メニューバーは常に表示して覆う（通知がバーの下に出る）
 - **menubar-click-guard**: 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ常駐プログラムを追加
 - **時計メニュー**: カレンダーを画像で描画（祝日・予定の件数バッジ・日付の選択）、予定の追加・編集・削除（通知付き）、カレンダーのアカウント設定への入口。Homebrew に `ical-buddy`
-- **音楽**: mpd + rmpc + mpc（`home/music.nix`）、rmpc のテーマ、Rigelian（App Store）。sketchybar のノッチの左に再生中の曲、右に CPU で走る猫
+- **音楽**: mpd + rmpc + mpc（`home/music.nix`）、rmpc のテーマ、ymuse（GUI）。sketchybar のノッチの左に再生中の曲、右に CPU で走る猫
 - **AeroSpace**: 隙間 3、通常のウィンドウは必ずタイル、フローティングは小さな一時ウィンドウだけ
 - **Brother LOGINserver**（Intel 専用）: Nix 管理外。`/Library/LaunchAgents` から plist を外して自動起動を停止
 

@@ -1,10 +1,13 @@
 { pkgs, ... }:
 {
+  home.shellAliases.youtube = "youtube-tui"; # 「youtube」で操作画面を開く
+
   home.packages = with pkgs; [
     # ── メディア ─────────────────────────────────────────────────────────── #
     ffmpeg       # 動画・音声変換（Blu-ray → MP3 等）
     mkvtoolnix   # MKV 操作
     mpv          # 動画・音声プレーヤー（`mpv <ファイル>`）
+    youtube-tui  # YouTube の TUI。再生は mpv（`youtube`）
 
     # ── CLI ユーティリティ ────────────────────────────────────────────────── #
     ripgrep      # 高速 grep

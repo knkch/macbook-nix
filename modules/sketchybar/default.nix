@@ -111,8 +111,8 @@ in
 
       # ── 左: 前面アプリ ──
       sketchybar --add item front_app left \
-        --subscribe front_app front_app_switched \
-        --set front_app icon.drawing=off label.color=0xff9ece6a script="${frontApp}"
+        --subscribe front_app front_app_switched $MENU \
+        --set front_app icon.drawing=off label.color=0xff9ece6a script="${frontApp}" $POPUP
 
       # メニューを開いたまま中身を作り直すためのイベント（Wi-Fi のスキャン後・通知の消去後）
       sketchybar --add event menu_rebuild
