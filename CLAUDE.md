@@ -21,7 +21,7 @@ rebuild   # zsh エイリアス
 
 | ファイル | 役割 |
 |----------|------|
-| `flake.nix` | inputs / outputs。`user` / `host` はここで一元定義し `specialArgs` で各モジュールへ |
+| `flake.nix` | inputs / outputs。`user` / `host` はここで一元定義し `specialArgs` で各モジュールへ。`nixpkgs-unstable` は 25.05 にない新しい版が要るものだけ（今は youtube-tui）|
 | `modules/system.nix` | nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults（Dock / Spaces / WindowManager 含む）・GC・ファイアウォール（activation） |
 | `modules/homebrew.nix` | Homebrew casks / brews / masApps / VS Code 拡張 / cleanup |
 | `modules/desktop.nix` | 常駐サービス: jankyborders、menubar-click-guard。sketchybar は `modules/sketchybar/` を読み込む |
@@ -301,12 +301,17 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 - ymuse: Rigelian（有料・App Store）の代わり。無料で Mac で使える mpd の GUI はほぼこれだけ
   （Cantata・myMPD・Plattenalbum・Sonata・mpdevil は nixpkgs で Linux 専用、Persephone は Homebrew から消えた）。
   GTK なので見た目は Mac らしくない。`.app` はなく、コマンドで起動。iPhone から操作する手段はない。
-- youtube-tui: 検索などは Invidious（中継サーバー）から取る。設定 `~/.config/youtube-tui/main.yml` は home/packages.nix で管理
-  （ほかの *.yml は初回起動時に既定のものが作られる）。公開サーバーの多くは外部からの検索を止めていて、
-  2026-10-30 時点で通ったのは `yt.chocolatemoo53.com` だけ（既定の vid.puffyan.us は停止済み）。
-  「Cannot deserialize response」が出たらサーバーが使えない → https://api.invidious.io で探して差し替える。
-  再生は mpv + **yt-dlp**（yt-dlp がないと YouTube を再生できない）。YouTube 側の変更で yt-dlp が古くなると再生できなくなる → `nix flake update`。
-  画像は HalfBlocks（cmux は Sixel 非対応）、ブラウザは `open`、保存は `env` で裏で実行（既定は Linux 向けの firefox / konsole）。
+- youtube-tui: **0.9.4 を nixpkgs-unstable から**取る（flake の入力 `nixpkgs-unstable`、home-manager に `pkgsUnstable` で渡す）。
+  25.05 の 0.8.1 は Invidious が返す -1（Mix などの動画数）を読めず、検索が「Cannot deserialize response: invalid value: integer `-1`, expected u32」で失敗する。
+  0.9 は Rust 1.88 以上が要り、25.05（Rust 1.86）ではビルドできない。nixpkgs を上げたら `pkgs.youtube-tui` に戻し、unstable の入力も外せるか確かめる。
+  - 設定 `~/.config/youtube-tui/main.yml` は activation で**普通のファイルとして書き込む**（home/packages.nix）。
+    youtube-tui は起動のたびに main.yml を書き直すので、読み取り専用のリンク（xdg.configFile）にすると検索が「Loading…」のまま止まる。
+    ほかの *.yml（search.yml は直前の検索を保存する）は youtube-tui が作るので管理しない。
+  - 検索は YouTube から直接（`search_provider = RustyPipe`）。Invidious（`invidious_instance`）は動画の詳細などに使う。
+    公開サーバーの多くは外部からの利用を止めていて、2026-10-30 時点で通ったのは `yt.chocolatemoo53.com`（既定の vid.puffyan.us は停止済み）。
+    使えなくなったら https://api.invidious.io で探して差し替える。
+  - 再生は mpv + **yt-dlp**（yt-dlp がないと YouTube を再生できない）。YouTube 側の変更で yt-dlp が古くなると再生できなくなる → `nix flake update`。
+  - 画像は HalfBlocks（cmux は Sixel 非対応）、ブラウザは `open`、保存は `env` で裏で実行（既定は Linux 向けの xdg-open / konsole）。
   ytfzf（検索して 1 本選ぶだけ、TUI ではない）は試して外した。
 - mpv を外から操作する TUI（mpvc / mpvc-tui）は nixpkgs で Linux 専用。必要なら自分でパッケージ化（シェルスクリプト + socat）。
 
@@ -345,6 +350,6 @@ Workflow「Brew Cask Finder」で `cask {キーワード}` 検索。
   `nix flake update` など、どのみち付け直すときに一緒に入れる。ax-agent も同じ（直すと許可の付け直しが要る）。
 - 未確認: Yazi の画像プレビューと mpv のターミナル内再生（`--vo=kitty`）が cmux で表示されるか。
   出なければ rmpc と同じく Kitty 方式の明示が要るかもしれない。
-- nixpkgs / nix-darwin / home-manager 25.05 → 新しいリリースへ更新。
+- nixpkgs / nix-darwin / home-manager 25.05 → 新しいリリースへ更新。そのとき youtube-tui を `pkgs` に戻し、`nixpkgs-unstable` の入力を外せるか確かめる。
   その際 `programs.git.userName/userEmail` → `programs.git.settings.user.*`、
   `programs.git.delta` → `programs.delta` などの移行が必要。
