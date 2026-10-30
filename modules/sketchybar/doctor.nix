@@ -54,6 +54,15 @@ in
       *) fail "ax-agent に頼めない" "ログ: /tmp/ax-agent.log" ;;
     esac
 
+    echo "Mac の守り"
+    fw=/usr/libexec/ApplicationFirewall/socketfilterfw
+    if $fw --getglobalstate 2>/dev/null | grep -q enabled; then pass "ファイアウォールがオン"
+    else fail "ファイアウォールがオフ" "rebuild でオンに戻る（modules/system.nix）"; fi
+    if $fw --getstealthmode 2>/dev/null | grep -q " on"; then pass "ステルスモードがオン"
+    else fail "ステルスモードがオフ" "rebuild でオンに戻る（modules/system.nix）"; fi
+    if fdesetup status 2>/dev/null | grep -q "is On"; then pass "FileVault がオン"
+    else fail "FileVault がオフ（盗まれるとディスクの中身を読まれる）" "システム設定 > プライバシーとセキュリティ > FileVault（手作業）"; fi
+
     echo "集中モードのショートカット"
     ${focusShortcuts}/bin/focus-shortcuts --check >/dev/null 2>&1
     case $? in

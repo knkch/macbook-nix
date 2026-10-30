@@ -249,6 +249,7 @@ Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox
 macOS が外からの設定を許していないため、`rebuild` では入れられないもの。新しい Mac や作り直したときに行う。
 詳しい理由とパスは [CLAUDE.md](CLAUDE.md) の「冪等性と手作業の設定」。
 
+- [ ] **FileVault** をオンにする（システム設定 > プライバシーとセキュリティ。ディスクの暗号化。macOS の仕様で自動化できない）
 - [ ] protected-reader に **フルディスクアクセス**（通知一覧・集中モードの状態）。sketchybar には与えない
 - [ ] ax-agent に **アクセシビリティ**（アプリのメニュー・通知センター・ビデオエフェクト・カメラの判定・入力ソース・絵文字）。sketchybar には与えない
 - [ ] sketchybar に **Bluetooth**・**カレンダー**（初回に出る確認で許可）
@@ -260,14 +261,25 @@ macOS が外からの設定を許していないため、`rebuild` では入れ�
 
 - [ ] 最後に `sketchybar-doctor` を実行して、全部 ✓ になるか確かめる
 
-> sketchybar・menubar-click-guard・protected-reader は、更新で場所（nix store のパス）が変わると許可を付け直す必要がある
+> ファイアウォールとステルスモードは `rebuild` が自動でオンにする（手作業は不要）。
+
+> sketchybar・menubar-click-guard・protected-reader・ax-agent は、更新で場所（nix store のパス）が変わると許可を付け直す必要がある
 > （ふだんの設定変更では変わらず、`nix flake update` のあとなどに起きる）。`sketchybar-doctor` で分かる。
 > 古い許可は「プライバシーとセキュリティ」の一覧に残るので、ときどき削除する。
+> オートメーションの一覧に sketchybar が出たら `tccutil reset AppleEvents`（画面からは外せない）。
 
 > Homebrew は `rebuild` のたびに最新版へ更新する設定（Claude Code などを常に最新にするため）。
 > そのため Homebrew で入るアプリの版だけは、実行した日によって変わる。
 
 ## 変更履歴
+
+### 2026-10-30 メディア・アプリのメニュー・権限の分離
+
+- **メディア**: `youtube`（youtube-tui。YouTube の TUI、再生は mpv）、Yazi を home-manager 管理に（`yy`。動画・音声は mpv、写真はプレビュー）。
+  rmpc のヘッダーに操作キーの案内。Rigelian（有料）を外し、無料の GUI **ymuse** に（`pkgs/ymuse` で Mac 向けに手直し）
+- **sketchybar**: 前面アプリ名をクリックでそのアプリのメニュー（ファイル・編集…）を開ける。メニューの検索（⌘⇧/）
+- **権限**: アクセシビリティの操作を **ax-agent** に分離。sketchybar はアクセシビリティ・フルディスクアクセス・オートメーションのどれも持たない
+- **Mac の守り**: ファイアウォールとステルスモードを `rebuild` でオンに。`sketchybar-doctor` でファイアウォール・FileVault も点検
 
 ### 2026-10-29 整理・冪等性
 
@@ -285,7 +297,7 @@ macOS が外からの設定を許していないため、`rebuild` では入れ�
 - **sketchybar**: 本体をパッチ版にしてメニューバーより手前に表示。高さ 33・不透明・ノッチ幅 186。標準メニューバーは常に表示して覆う（通知がバーの下に出る）
 - **menubar-click-guard**: 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ常駐プログラムを追加
 - **時計メニュー**: カレンダーを画像で描画（祝日・予定の件数バッジ・日付の選択）、予定の追加・編集・削除（通知付き）、カレンダーのアカウント設定への入口。Homebrew に `ical-buddy`
-- **音楽**: mpd + rmpc + mpc（`home/music.nix`）、rmpc のテーマ、ymuse（GUI）。sketchybar のノッチの左に再生中の曲、右に CPU で走る猫
+- **音楽**: mpd + rmpc + mpc（`home/music.nix`）、rmpc のテーマ、Rigelian（App Store）。sketchybar のノッチの左に再生中の曲、右に CPU で走る猫
 - **AeroSpace**: 隙間 3、通常のウィンドウは必ずタイル、フローティングは小さな一時ウィンドウだけ
 - **Brother LOGINserver**（Intel 専用）: Nix 管理外。`/Library/LaunchAgents` から plist を外して自動起動を停止
 

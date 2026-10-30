@@ -22,7 +22,7 @@ rebuild   # zsh エイリアス
 | ファイル | 役割 |
 |----------|------|
 | `flake.nix` | inputs / outputs。`user` / `host` はここで一元定義し `specialArgs` で各モジュールへ |
-| `modules/system.nix` | nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults（Dock / Spaces / WindowManager 含む）・GC |
+| `modules/system.nix` | nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults（Dock / Spaces / WindowManager 含む）・GC・ファイアウォール（activation） |
 | `modules/homebrew.nix` | Homebrew casks / brews / masApps / VS Code 拡張 / cleanup |
 | `modules/desktop.nix` | 常駐サービス: jankyborders、menubar-click-guard。sketchybar は `modules/sketchybar/` を読み込む |
 | `modules/sketchybar/default.nix` | sketchybar のサービス・バーの設定（`sketchybarrc`）、protected-reader の常駐、集中モードのショートカットの確認 |
@@ -239,6 +239,14 @@ AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`
 - Homebrew は Brewfile にないものを毎回消すので、書いた内容と一致する。ただし `autoUpdate` / `upgrade` が有効なので、
   **入る版は実行した日によって変わる**（Claude Code などを常に最新にするための意図した設定。版の固定はしない）。
 - Nix のパッケージの版は `flake.lock` で固定。更新は `nix flake update` → `rebuild`。
+- ファイアウォールとステルスモードは activation で `socketfilterfw` を使ってオンにする（modules/system.nix）。
+  `system.defaults.alf`（com.apple.alf の defaults）は macOS 15 以降効かないので使わない。
+  外からの接続を許可するアプリの一覧（`socketfilterfw --listapps`）は管理しない（2026-10-30 時点で /usr/bin/python3・ruby が許可されたまま）。
+- macOS の許可（TCC: アクセシビリティ・フルディスクアクセス・オートメーションなど）と FileVault は、macOS の仕様で設定ファイルから入れられない → 下の一覧で手作業。
+  許可を与えるプログラムは決まった場所（nix store）にあり、パッケージが変わると付け直し（`sketchybar-doctor` がパスを示す）。
+- `pkgs/ymuse` は nixpkgs の librsvg / gdk-pixbuf のファイル配置（`lib/gdk-pixbuf-2.0/2.10.0/loaders/…`、`librsvg-2.2.dylib`）に頼っている。
+  `nix flake update` で配置が変わると、SVG が入っていなければビルドが止まる（`grep -q svg`）。nixpkgs 側で直れば手直しは不要になる。
+- 既存の Mac では、Brewfile から外したもの（例: Rigelian）は `rebuild` の片付けでアンインストールされる。新しい Mac では入らないだけ。
 - **リモートの git リポジトリはまだない**。この Mac が壊れると設定も失われるので、プライベートなリポジトリへの push を推奨。
 
 ### 手作業が必要な設定（新しい Mac・作り直したとき）
@@ -246,6 +254,7 @@ AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`
 | 何を | どこで | 理由・メモ |
 |------|--------|------------|
 | Nix と Homebrew のインストール、このリポジトリを `~/.config/nix-darwin` に置く | ターミナル | rebuild の前提（README の「新しい Mac にセットアップする」） |
+| **FileVault** をオン | プライバシーとセキュリティ > FileVault | ディスクの暗号化。ノート PC なので必須。`sketchybar-doctor` で点検 |
 | protected-reader に **フルディスクアクセス** | プライバシーとセキュリティ > フルディスクアクセス で「＋」→ ⌘⇧G でパスを入力 | 通知一覧・集中モードの状態を読む。パスは `launchctl print gui/$(id -u)/org.nixos.protected-reader \| grep program`。**sketchybar には与えない**（与えていたら外す） |
 | ax-agent に **アクセシビリティ** | 同 > アクセシビリティ | アプリのメニュー、通知センター・ビデオエフェクトを開く、カメラの判定、入力ソース切り替え、絵文字。パスは `launchctl print gui/$(id -u)/org.nixos.ax-agent \| grep program`。**sketchybar には与えない**（与えていたら外す） |
 | sketchybar に **Bluetooth**・**カレンダー** | 初回に出る確認で許可 | `blueutil`、`icalBuddy` / `event.js` |

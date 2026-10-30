@@ -75,5 +75,12 @@
     if ! /usr/bin/pgrep -q oahd; then
       /usr/sbin/softwareupdate --install-rosetta --agree-to-license
     fi
+
+    # ファイアウォールとステルスモード（外からの問い合わせに応答しない）をオン。
+    # system.defaults.alf（com.apple.alf の defaults）は macOS 15 以降効かないので socketfilterfw で設定する。
+    # すでにオンなら何も変わらない。外からの接続を許可するアプリの一覧はここでは扱わない
+    fw=/usr/libexec/ApplicationFirewall/socketfilterfw
+    $fw --setglobalstate on >/dev/null
+    $fw --setstealthmode on >/dev/null
   '';
 }
