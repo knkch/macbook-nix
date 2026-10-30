@@ -192,6 +192,7 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
   - できる操作は固定: `menus` / `menu-open <pid> <番号>`（前面アプリだけ）/ `extra-click clock|audiovideo` / `camera` / `key ime-next|emoji|menu-search` / `extras` / `trusted`。
   - System Events（osascript）は使わない: Apple Events では許可の確認が osascript に対して行われ、sketchybar の許可が効かないため。
   - 許可がないと `ERROR noaccess` を返し、`/tmp/ax-agent.log` に出す。点検は `sketchybar-doctor`。
+  - 前面アプリは NSWorkspace で取る（AX の `kAXFocusedApplicationAttribute` は launchd から動かすと取れなかった）。
 - 通知一覧は、protected-reader が通知センターのデータベース（`~/Library/Group Containers/group.com.apple.usernoted/db2/db`）から
   書き出したものを `notifList`（Python）で読む（読めない場合はメニューに案内を表示）。
   「すべて消去」は消去した時刻を `~/Library/Caches/sketchybar-notify-cleared` に記録して、それより前を表示しないだけ（macOS の通知センター側は消えない。DB は書き換えない）。
@@ -218,6 +219,9 @@ AeroSpace のレイアウト: 通常のウィンドウは必ずタイル（`defa
 `accordion-padding = 0`）。フローティングはタイルの後ろに隠れることがある（AeroSpace は手前に固定できない）ので、
 `on-window-detected` で浮かせるのはピクチャインピクチャ・Finder の情報/コピー進行状況・アーカイブユーティリティ・
 Digital Color Meter だけ（ダイアログ・シートは AeroSpace が自動で浮かせる）。手動の切り替えは `alt-shift-f`。
+
+緑のボタン（macOS のフルスクリーン）は別の Space を作り、そこには sketchybar が出ない（標準メニューバーは上端にマウスを寄せると出る）。
+最大化は `alt-f`（AeroSpace のフルスクリーン。外側の隙間を残すので sketchybar も見える）を使う。
 
 AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`・`alt-shift-N` ワークスペース /
 `alt-f` フルスクリーン / `alt-tab` ワークスペースを次のモニターへ。
@@ -323,8 +327,6 @@ Workflow「Brew Cask Finder」で `cask {キーワード}` 検索。
 - protected-reader: 通知を読めなかったとき、ファイルを直接開いた結果（`Operation not permitted` = 許可がない）もログに出すと、
   `sketchybar-doctor` で原因がはっきりする。ただし直すとプログラムのパスが変わり許可の付け直しが要るので、
   `nix flake update` など、どのみち付け直すときに一緒に入れる。ax-agent も同じ（直すと許可の付け直しが要る）。
-- 前面アプリのメニュー（sketchybar）: ax-agent の前面アプリの取得を AX（`kAXFocusedApplicationAttribute`、
-  launchd から動かすと取れなかった）から NSWorkspace に変えた。許可を付け直したあと、メニューの一覧・本物のメニューが開くことを確認する。
 - 未確認: Yazi の画像プレビューと mpv のターミナル内再生（`--vo=kitty`）が cmux で表示されるか。
   出なければ rmpc と同じく Kitty 方式の明示が要るかもしれない。
 - nixpkgs / nix-darwin / home-manager 25.05 → 新しいリリースへ更新。
