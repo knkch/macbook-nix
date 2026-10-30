@@ -41,7 +41,7 @@ rebuild   # zsh エイリアス
 | `home/vscode.nix` | VS Code の表示言語のみ（本体・拡張は Homebrew） |
 | `home/music.nix` | 音楽: mpd（`~/Music/MyLibrary`、CoreAudio、launchd で常駐。データ / ログのディレクトリは activation で作成）・rmpc（TUI）・mpc・ymuse（GUI）。エイリアス `music` = rmpc |
 | `home/yazi.nix` | ファイルマネージャー Yazi（`yy` で開き、終了時にそのフォルダへ移動）。開き方: 写真 → open（プレビュー）、音声 → mpv をターミナル内で（`--no-video`）、動画 → mpv の別ウィンドウ（`O` でターミナル内 `--vo=kitty` も選べる） |
-| `home/rmpc/` | rmpc の設定 `config.ron`（0.8.0 の既定値 + アルバムアートは Kitty 方式を明示: cmux は TERM_PROGRAM を出さず自動判定で未対応になる）とテーマ `tokyonight.ron`（作者の公開設定を参考に、上に曲情報 2 行と操作キーの案内 1 行（表示だけ。rmpc は個別のボタンを置けない）・下に進行バー、アート 35% / 再生リスト 65%） |
+| `home/rmpc/` | rmpc の設定 `config.ron`（0.8.0 の既定値 + アルバムアートは Kitty 方式を明示: cmux は TERM_PROGRAM を出さず自動判定で未対応になる）とテーマ `tokyonight.ron`（作者の公開設定を参考に、上に曲情報 2 行と、その下に操作キーの案内 1 行（表示だけ。rmpc は個別のボタンを置けない。ヘッダーの中は左・中央・右に 3 等分され切れるので、幅全体の `Property` ペインに置く）・下に進行バー、アート 35% / 再生リスト 65%） |
 | `pkgs/calendar/` | sketchybar の時計メニューのカレンダー画像を描く `render.py`（メニューを開くたびに約 0.25 秒）、予定の一覧・追加・編集・削除をする `event.js`（JXA + EventKit）、時間を選ぶ画面 `timepicker.js`（JXA + NSAlert / NSPopUpButton） |
 | `pkgs/ymuse/` | mpd の GUI ymuse の Mac 向け手直し: nixpkgs の SVG 読み込み部品（librsvg の `libpixbufloader_svg.dylib`）は `@rpath` が解決できず読めないため、コピーして librsvg の場所を書き込み・署名し直し、それを含む `loaders.cache` を使う（ないとボタンのアイコンが灰色の四角）。包み方を変えてアプリ名を `.ymuse-wrapped` でなく `ymuse` に |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
@@ -296,7 +296,7 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 | 手元の動画・音声・写真 | mpv / プレビュー | Yazi（TUI） | `yy` |
 
 - rmpc: 操作ボタンを置く機能はない（0.8.0・最新の 0.11 とも。ヘッダーのクリックで再生/一時停止、スクロールで音量、
-  進行バーのクリックでその位置へ、だけ）。代わりにヘッダーの 3 行目に操作キーの案内を表示（home/rmpc/tokyonight.ron）。
+  進行バーのクリックでその位置へ、だけ）。代わりにヘッダーの下に操作キーの案内の行を表示（home/rmpc/tokyonight.ron）。
   ボタンで操作したいときは ymuse。
 - ymuse: Rigelian（有料・App Store）の代わり。無料で Mac で使える mpd の GUI はほぼこれだけ
   （Cantata・myMPD・Plattenalbum・Sonata・mpdevil は nixpkgs で Linux 専用、Persephone は Homebrew から消えた）。
