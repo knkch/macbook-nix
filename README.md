@@ -181,7 +181,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | `lg` | lazygit |
 | `vlc-bd` | Blu-ray 再生用に OpenJDK 17 を指定して VLC を起動 |
 | `music` | rmpc（音楽の操作画面）を開く |
-| `youtube` | youtube-tui（YouTube の操作画面。再生は ytplay） |
+| `youtube` | youtube-tui（YouTube の操作画面）。Ctrl+P か「Play video」で、下に開くペインの中で再生（q で閉じる） |
 | `ytplay <URL>` | YouTube の動画を再生（`--no-video` で音声だけ、`--term` でターミナルの中に文字で描く） |
 | `yy` | Yazi（ファイルマネージャー）。終了するとそのフォルダへ移動。写真は Enter でプレビュー、音声はターミナルで再生、動画は mpv（`O` でターミナル内再生も選べる） |
 

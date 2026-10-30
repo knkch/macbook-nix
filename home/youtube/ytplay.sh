@@ -3,11 +3,23 @@
 #   標準入力ではなくプロセス置換で渡すので、ターミナルから起動したときは mpv をキーで操作できる。
 #
 #   --no-video  音声だけ取る          --term     ターミナルの中に文字で描く（mpv の tct、360p）
+#   --pane      cmux なら今のペインの下に新しいペインを開き、その中で --term 再生する（終わると閉じる）。
+#               youtube-tui の画面の上で直接再生すると、戻ったときに youtube-tui の表示が崩れるため。cmux の外では --term と同じ
 #   --loop      最後まで行ったら繰り返す  --shuffle  順番を混ぜる
 #   ほかの「-」で始まる引数は mpv にそのまま渡す。
 #   再生リスト・チャンネルの URL は中の動画を順に再生する。q で全部止める（mpv の 1 本だけなら閉じても次へ進む）。
 #   URL でないもの（保存済みのファイル）は mpv で直接再生する。
 fmt="bv*[height<=1080]+ba/b" args=() urls=() files=() loop="" shuffle="" term=""
+# --pane: cmux の中なら、新しいペインで自分（--pane を除いた引数で --term）を動かして、すぐ戻る
+if printf '%s\n' "$@" | grep -qx -- --pane; then
+  rest=()
+  for a in "$@"; do [ "$a" = --pane ] || rest+=("$a"); done
+  if [ -n "${CMUX_SURFACE_ID:-}" ] && command -v cmux >/dev/null 2>&1; then
+    cmd=$(printf '%q ' "$0" --term "${rest[@]}")
+    exec cmux new-split down --command "$cmd; exit" --focus true >/dev/null 2>&1
+  fi
+  set -- --term "${rest[@]}"
+fi
 for a in "$@"; do
   case "$a" in
     --no-video) fmt="ba/b"; args+=("$a") ;;
@@ -19,9 +31,13 @@ for a in "$@"; do
     *) files+=("$a") ;;
   esac
 done
-if [ -n "$term" ] && [ "$fmt" != "ba/b" ]; then
-  fmt="bv*[height<=360]+ba/b"
-  args=(--vo=tct --really-quiet "${args[@]}")
+if [ -n "$term" ]; then
+  # youtube-tui の run は画面出力を捨てるので、ターミナルに直接つなぎ直す（キー操作も同じターミナルから）
+  exec </dev/tty >/dev/tty 2>/dev/null
+  if [ "$fmt" != "ba/b" ]; then
+    fmt="bv*[height<=360]+ba/b"
+    args=(--vo=tct --really-quiet "${args[@]}")
+  fi
 fi
 # q を押したら終了コード 9 にして、残りの再生をやめる（最後まで再生したときは 0）
 args=(--input-conf="$YTPLAY_INPUT_CONF" "${args[@]}")

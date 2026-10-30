@@ -316,7 +316,12 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
     youtube-tui の既定は「音声だけ」などを組み込みの mpv（libmpv）で、ショートカットキー（Ctrl+P など）は mpv を直接呼ぶので、
     home/youtube/commands.yml・commandbindings.yml で全部 ytplay に置き換えた。組み込みの mpv を操作するキー（space・Ctrl+← →）は外した
     （音声だけのときも操作用に小さなウィンドウを出す）。
-  - ytplay: `--no-video`（音声だけ）、`--term`（ターミナルの中に文字で描く。mpv の tct、360p）、`--loop`、`--shuffle`、
+  - **動画はターミナルの中で再生**（「Play video」・Ctrl+P）: `ytplay --pane` が cmux の `new-split down` で youtube-tui の下にペインを開き、
+    その中で `--term` 再生する（終わるか q で閉じる）。youtube-tui の画面の上で直接再生（`run`）すると、mpv が終わるときに
+    代替画面から抜けて youtube-tui の表示が崩れ、youtube-tui には画面を消して描き直す命令がない（`back` の中だけ）ため。
+    cmux の外では `--term` と同じ（その場で再生）。別ウィンドウは「Play video (window)」。音声だけは裏で再生（小さなウィンドウ）。
+    youtube-tui の `run`・`parrun` はどちらも子の出力を捨てるので、`--term` は `/dev/tty` につなぎ直して描く。
+  - ytplay: `--no-video`（音声だけ）、`--term`（ターミナルの中に文字で描く。mpv の tct、360p）、`--pane`、`--loop`、`--shuffle`、
     再生リスト・チャンネルの URL は中の動画を順に、保存済みのファイルは mpv で直接。`q` で残りも止める（終了コード 9、ytplay-input.conf）。
     流し込みなので、まだ受け取っていない先へは飛べず、`--start` も使えない。h264 → vp9 を優先（AV1 はハードウェア再生できない Mac がある）。
   - `--vo=kitty` は cmux では映らない（mpv は画像を送るが表示されず、強制終了することもある）。rmpc の静止画は Kitty 方式で出る。

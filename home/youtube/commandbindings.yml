@@ -1,6 +1,6 @@
 # youtube-tui のショートカットキー（0.9.4 の既定がもと）。home/packages.nix の activation で ~/.config/youtube-tui/commandbindings.yml に書き込む。
 # 既定は mpv を直接呼ぶが、mpv が YouTube を直接読むと 403 になるので ${video-player}（ytplay）に置き換えた。
-# 数字は修飾キー: 1 = Shift、2 = Ctrl。一覧の上で Ctrl+P = 動画を再生、Ctrl+A = 音声だけ、Shift+A = 音声だけ・シャッフル・ループ。
+# 数字は修飾キー: 1 = Shift、2 = Ctrl。一覧の上で Ctrl+P = 動画をターミナルの中で再生（cmux なら下に開くペイン。q で閉じる）、Ctrl+A = 音声だけ、Shift+A = 音声だけ・シャッフル・ループ。
 # 組み込みの mpv を操作するキー（space・Ctrl+← → など）は、ytplay の mpv には届かないので外した（操作は mpv のウィンドウで）
 global:
   'f':
@@ -11,7 +11,7 @@ global:
     0: cp ${url}
 search:
   'p':
-    2: parrun ${video-player} '${hover-url}'
+    2: parrun ${video-player} --pane '${hover-url}'
   'A':
     1: parrun ${video-player} --no-video --force-window=yes --loop --shuffle '${hover-url}'
   'a':
@@ -22,10 +22,10 @@ popular:
   'A':
     1: parrun ${video-player} --no-video --force-window=yes --loop --shuffle '${hover-url}'
   'p':
-    2: parrun ${video-player} '${hover-url}'
+    2: parrun ${video-player} --pane '${hover-url}'
 trending:
   'p':
-    2: parrun ${video-player} '${hover-url}'
+    2: parrun ${video-player} --pane '${hover-url}'
   'A':
     1: parrun ${video-player} --no-video --force-window=yes --loop --shuffle '${hover-url}'
   'a':
@@ -35,7 +35,7 @@ playlist:
   'a':
     2: parrun ${video-player} --no-video --force-window=yes '${hover-url}'
   'p':
-    2: parrun ${video-player} '${hover-url}'
+    2: parrun ${video-player} --pane '${hover-url}'
   'A':
     1: parrun ${video-player} --no-video --force-window=yes --loop --shuffle '${hover-url}'
 channel_main: {}
@@ -45,10 +45,10 @@ channel_videos:
   'A':
     1: parrun ${video-player} --no-video --force-window=yes --loop --shuffle '${hover-url}'
   'p':
-    2: parrun ${video-player} '${hover-url}'
+    2: parrun ${video-player} --pane '${hover-url}'
 channel_playlists:
   'p':
-    2: parrun ${video-player} '${hover-url}'
+    2: parrun ${video-player} --pane '${hover-url}'
   'A':
     1: parrun ${video-player} --no-video --force-window=yes --loop --shuffle '${hover-url}'
   'a':
@@ -59,12 +59,12 @@ watchhistory:
   'A':
     1: parrun ${video-player} --no-video --force-window=yes --loop --shuffle '${hover-url}'
   'p':
-    2: parrun ${video-player} '${hover-url}'
+    2: parrun ${video-player} --pane '${hover-url}'
 feed:
   'a':
     2: parrun ${video-player} --no-video --force-window=yes '${hover-video-url}'
   'p':
-    2: parrun ${video-player} '${hover-video-url}'
+    2: parrun ${video-player} --pane '${hover-video-url}'
   'A':
     1: parrun ${video-player} --no-video --force-window=yes --loop --shuffle '${hover-channel-url}/videos'
   'P':
@@ -75,4 +75,4 @@ library:
   'a':
     2: parrun ${video-player} --no-video --force-window=yes '${hover-url}'
   'p':
-    2: parrun ${video-player} '${hover-url}'
+    2: parrun ${video-player} --pane '${hover-url}'
