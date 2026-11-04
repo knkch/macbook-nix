@@ -60,6 +60,9 @@ in
       # Fonts
       "font-hack-nerd-font"
 
+      # Display
+      "betterdisplay"           # 外部ディスプレイの HiDPI（標準では出ない解像度を使えるようにする）
+
       # Terminal / Dev
       "claude-code"             # nixpkgs 版は更新が遅いため cask で最新を追従
       "visual-studio-code"      # 拡張は下の vscodeExtensions で管理

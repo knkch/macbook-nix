@@ -54,7 +54,7 @@ in
   };
 
   # ── アクセシビリティの操作（ax-agent）──────────────────────────────────── #
-  # アプリのメニューを開く・通知センターを開く・カメラの使用中の判定・入力ソースのキー操作には
+  # アプリのメニューを開く・通知センターや BetterDisplay のメニューを開く・カメラの使用中の判定・入力ソースのキー操作には
   # アクセシビリティが要る。許可はこの常駐プログラムだけに与え、sketchybar には与えない（理由は上と同じ）。
   # sketchybar は ~/Library/Caches/sketchybar-ax/sock（自分だけが使える）に頼む。できる操作は固定。pkgs/ax-agent
   launchd.user.agents.ax-agent.serviceConfig = {
@@ -133,7 +133,7 @@ in
       sketchybar --add event menu_rebuild
       sketchybar --add event notify_update # 通知の件数を更新
 
-      # ── 右（右端から）: 通知 / 時計 / バッテリー / 音量 / 入力ソース / Bluetooth / ネットワーク / VPN ──
+      # ── 右（右端から）: 通知 / 時計 / バッテリー / 音量 / ディスプレイ / 入力ソース / Bluetooth / ネットワーク / VPN ──
       sketchybar --add item notify right \
         --subscribe notify menu_rebuild notify_update $MENU \
         --set notify icon="󰂚" label.drawing=off update_freq=60 script="${notify}" \
@@ -155,6 +155,10 @@ in
       sketchybar --add item volume right \
         --subscribe volume volume_change mouse.scrolled $MENU \
         --set volume script="${volume}" popup.align=right $POPUP
+
+      # ディスプレイ（BetterDisplay）。押すと BetterDisplay のメニュー（HiDPI・解像度など）を開く
+      sketchybar --add item display right \
+        --set display icon="󰍹" label.drawing=off click_script="${action} display"
 
       # 再生中の曲（ノッチのすぐ左 = position q。長い曲名は 30 文字まで。停止中は「停止中」、mpd が動いていなければ「オフ」）
       sketchybar --add event music_update

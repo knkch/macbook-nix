@@ -8,13 +8,16 @@
 //   menus                 前面アプリの pid（1 行目）と、メニューバーの項目（2 行目から
 //                         「<番号> US <名前>」、US = \x1f。Apple メニュー（0 番）は除く）
 //   menu-open <pid> <番号> 前面アプリのメニューを開く（pid が今の前面アプリと一致するときだけ）
-//   extra-click <名前>    標準メニューバーの項目をクリック（clock = 通知センター / audiovideo = ビデオエフェクト）
+//   extra-click <名前>    標準メニューバーの項目をクリック（clock = 通知センター / audiovideo = ビデオエフェクト /
+//                         betterdisplay = BetterDisplay のメニュー）
 //   camera                カメラが使用中なら 1、そうでなければ 0（コントロールセンターの表示から判定）
 //   key <名前>            決まったキー操作を送る（ime-next = ⌃Space / emoji = ⌃⌘Space / menu-search = ⌘⇧/）
 //   extras                コントロールセンターの項目の識別子の一覧（sketchybar-doctor の点検用）
 //   trusted               アクセシビリティの許可があれば 1
 //
 // 許可がないときは "ERROR noaccess" を返す（理由は /tmp/ax-agent.log にも出す）。
+// そのあと自分で終了し、launchd に起動し直してもらう（動いたままだと、あとで許可を付けても
+// 許可なしのまま扱われるため。起動し直しは launchd の ThrottleInterval で間隔が空く）。
 //
 // 使い方: ax-agent <ソケットのディレクトリ>
 #import <AppKit/AppKit.h>
@@ -64,19 +67,23 @@ static NSArray *menuBarItems(pid_t pid) {
   return [kids isKindOfClass:NSArray.class] ? kids : @[];
 }
 
-// コントロールセンターが標準メニューバーに置いている項目（時計・コントロールセンター・カメラ等）
-static NSArray *controlCenterExtras(void) {
-  NSRunningApplication *cc =
-      [NSRunningApplication runningApplicationsWithBundleIdentifier:@"com.apple.controlcenter"].firstObject;
-  if (!cc) return @[];
-  AXUIElementRef app = appElement(cc.processIdentifier);
+// アプリが標準メニューバーの右側に置いている項目（AXExtrasMenuBar の中身）。
+// orMenuBar: 見つからなければアプリのメニューバーで代用する（コントロールセンター用）
+static NSArray *appExtras(NSString *bundleId, BOOL orMenuBar) {
+  NSRunningApplication *ra =
+      [NSRunningApplication runningApplicationsWithBundleIdentifier:bundleId].firstObject;
+  if (!ra) return @[];
+  AXUIElementRef app = appElement(ra.processIdentifier);
   id bar = copyAttr(app, CFSTR("AXExtrasMenuBar"));
-  if (!bar) bar = copyAttr(app, kAXMenuBarAttribute);
+  if (!bar && orMenuBar) bar = copyAttr(app, kAXMenuBarAttribute);
   CFRelease(app);
   if (!bar) return @[];
   id kids = copyAttr((__bridge AXUIElementRef)bar, kAXChildrenAttribute);
   return [kids isKindOfClass:NSArray.class] ? kids : @[];
 }
+
+// コントロールセンターが標準メニューバーに置いている項目（時計・コントロールセンター・カメラ等）
+static NSArray *controlCenterExtras(void) { return appExtras(@"com.apple.controlcenter", YES); }
 
 static id extraWithId(NSString *ident) {
   for (id item in controlCenterExtras())
@@ -131,6 +138,14 @@ static NSString *handle(NSArray<NSString *> *args) {
     NSArray *items = menuBarItems(pid);
     if (i < 1 || i >= (NSInteger)items.count) return @"ERROR range";
     pressLater(items[i]);
+    return @"ok";
+  }
+
+  // BetterDisplay はメニューバーの項目が 1 つだけなので、識別子ではなくアプリで探す
+  if ([cmd isEqual:@"extra-click"] && args.count == 2 && [args[1] isEqual:@"betterdisplay"]) {
+    id item = appExtras(@"pro.betterdisplay.BetterDisplay", NO).firstObject;
+    if (!item) return @"ERROR notfound";
+    pressLater(item);
     return @"ok";
   }
 
@@ -196,6 +211,7 @@ static void serve(int client) {
   const char *out = reply.UTF8String;
   write(client, out, strlen(out));
   close(client);
+  if ([reply hasPrefix:@"ERROR noaccess"]) exit(0);
 }
 
 int main(int argc, char **argv) {
