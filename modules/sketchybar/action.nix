@@ -86,7 +86,7 @@ rec {
 
     pane() { open "x-apple.systempreferences:$1"; }
     refresh() { sleep "$1"; sketchybar --update; }
-    # click_menuextra <clock / audiovideo / betterdisplay>: 隠れている標準メニューバーの項目をクリック（ax-agent に頼む。失敗なら偽）
+    # click_menuextra <clock / audiovideo>: 隠れている標準メニューバーの項目をクリック（ax-agent に頼む。失敗なら偽）
     click_menuextra() { [ "$(ax extra-click "$1")" = ok ]; }
 
     case "$1" in
@@ -275,10 +275,15 @@ rec {
         click_menuextra audiovideo \
           || notify_msg "ビデオエフェクト" "カメラを使っているときだけ開けます" ;;
 
-      # BetterDisplay（HiDPI・解像度）: 隠れている標準メニューバーの BetterDisplay の項目を押す。
-      # 動いていなければ起動する（起動するとメニューバーに項目が出るので、もう一度押せば開く）
+      # BetterDisplay（HiDPI・解像度）: BetterDisplay 自身の命令でメニューを開く（アクセシビリティは要らない。
+      # 隠れたメニューバーの項目を押す方法では、BetterDisplay が前面に来るだけでメニューが出なかった）。
+      # 命令はすぐに終わらないことがあるので裏で実行する。動いていなければ起動だけする
       display)
-        click_menuextra betterdisplay || open -a BetterDisplay ;;
+        if pgrep -xq BetterDisplay; then
+          /Applications/BetterDisplay.app/Contents/MacOS/BetterDisplay set -appMenu=on >/dev/null 2>&1 &
+        else
+          open -a BetterDisplay
+        fi ;;
 
       # Tailscale
       ts-up)   ${tailscale} up;   refresh 2 ;;
