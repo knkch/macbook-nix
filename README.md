@@ -1,4 +1,4 @@
-# KokinoMacBook-Pro — nix-darwin Config
+# MacBook-Pro — nix-darwin Config
 
 nix-darwin + home-manager による macOS 環境の宣言的管理。
 
