@@ -1,3 +1,6 @@
 # nix build / darwin-rebuild build の出力
 result
 result-*
+
+# アプリのキャッシュ
+.cache/
