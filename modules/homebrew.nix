@@ -135,7 +135,10 @@ in
 
     onActivation = {
       autoUpdate = true;  # Homebrew 本体・定義を更新
-      upgrade    = true;  # claude-code 等を rebuild 時に最新へ
+      # 本来は true（claude-code 等を rebuild 時に最新へ）。2026-11-11 時点、JRiver が media-center 36.00.54 の
+      # dmg を Homebrew 登録後に差し替えてチェックサムが合わず brew bundle が失敗するため、一時的に止めている。
+      # `brew upgrade --cask media-center` が通るようになったら true に戻す
+      upgrade    = false;
     };
   };
 

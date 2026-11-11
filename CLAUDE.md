@@ -364,6 +364,8 @@ Workflow「Brew Cask Finder」で `cask {キーワード}` 検索。
 
 ## 今後の課題
 
+- **Homebrew の upgrade を戻す**（modules/homebrew.nix の `onActivation.upgrade`）: 2026-11-11 に media-center 36.00.54 の dmg が配布元で差し替えられ、
+  チェックサムが合わず rebuild が失敗したため一時的に false にした。`brew update && brew upgrade --cask media-center` が通れば true に戻す。
 - protected-reader: 通知を読めなかったとき、ファイルを直接開いた結果（`Operation not permitted` = 許可がない）もログに出すと、
   `sketchybar-doctor` で原因がはっきりする。ただし直すとプログラムのパスが変わり許可の付け直しが要るので、
   `nix flake update` など、どのみち付け直すときに一緒に入れる。ax-agent も同じ（直すと許可の付け直しが要る）。
