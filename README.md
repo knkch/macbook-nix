@@ -227,7 +227,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | ykman（yubikey-manager） | `home/packages.nix` | PIN・FIDO2・PIV・OATH の設定と管理（`ykman info` で確認） |
 | Yubico Authenticator | cask | 2 段階認証コード（TOTP）の表示・管理 |
 | paperkey | `home/packages.nix` | GPG の秘密鍵を紙のバックアップ用に書き出す |
-| GnuPG（gpg） | `home/gpg.nix` | 署名・暗号化。パスワード（PIN）は pinentry-mac の画面で入力。YubiKey の OpenPGP は `gpg --card-status` で確認 |
+| GnuPG（gpg） | `home/gpg.nix` | 署名・暗号化・SSH（gpg-agent が SSH エージェントを兼ねる）。PIN は pinentry-mac の画面で入力。git のコミットは YubiKey で署名。`gpg --card-status` で確認 |
 
 ### セキュリティ（`home/security.nix`）
 

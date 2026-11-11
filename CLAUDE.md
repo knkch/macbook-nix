@@ -35,7 +35,8 @@ rebuild   # zsh エイリアス
 | `home/packages.nix` | 一般 CLI / インフラ / クラウドツール |
 | `home/security.nix` | セキュリティツール群（`my.security.enable` で一括オン・オフ） |
 | `home/shell.nix` | zsh・starship・atuin・zoxide・fzf・bat・eza・lazygit・direnv |
-| `home/git.nix` | git + delta |
+| `home/git.nix` | git + delta。コミットとタグは GPG 署名（YubiKey） |
+| `home/gpg.nix` | GnuPG・gpg-agent（pinentry-mac、SSH エージェントを兼ねる） |
 | `home/nixvim.nix` | Neovim（nixvim）全設定 |
 | `home/desktop.nix` | AeroSpace 設定・Ghostty |
 | `home/vscode.nix` | VS Code の表示言語のみ（本体・拡張は Homebrew） |
@@ -343,6 +344,16 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 - エイリアス: `rebuild`, `ll`, `lg`, `cat`(bat), `ls`(eza), `vlc-bd`, `music`(rmpc), `youtube`(youtube-tui)
 - `yy`: Yazi（home/yazi.nix）。終了するとそのフォルダへ移動する
 - `vlc-bd`: `open --env JAVA_HOME=…openjdk@17 -a VLC`（`open` は通常の環境変数を引き継がないため `--env`）
+
+## GPG・YubiKey・SSH
+
+- 主鍵（ed25519、証明用）はオフラインのバックアップ USB だけにある。副鍵（署名・暗号化・認証、期限 2028-11-10）は YubiKey の中。
+  指紋は `~/fingerprint.txt`、公開鍵は `~/public-key.asc`。期限の延長や紛失時の手順はユーザーの手順書にある（主鍵が要るのでオフラインで行う）
+- **git のコミットとタグは署名される**（home/git.nix の `signing`）。YubiKey を挿してタッチと PIN が要る。
+  Claude がコミットするときは、YubiKey を挿しておくようユーザーに伝える（ないと失敗する）
+- gpg-agent が SSH エージェントを兼ねる。macOS は標準の ssh-agent の `SSH_AUTH_SOCK` をいつも入れていて、home-manager の
+  「空のときだけ」の設定が効かないので、zsh では `gpgconf --list-dirs agent-ssh-socket` に上書きする（home/gpg.nix）。
+  GUI のアプリ（VS Code の Remote SSH など）は launchd の値のまま＝標準の ssh-agent を使う
 
 ---
 
