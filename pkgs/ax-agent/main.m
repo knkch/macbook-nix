@@ -9,7 +9,7 @@
 //                         「<番号> US <名前>」、US = \x1f。Apple メニュー（0 番）は除く）
 //   menu-open <pid> <番号> 前面アプリのメニューを開く（pid が今の前面アプリと一致するときだけ）
 //   extra-click <名前>    標準メニューバーの項目をクリック（clock = 通知センター / audiovideo = ビデオエフェクト /
-//                         betterdisplay = BetterDisplay のメニュー）
+//                         wifi = Wi-Fi メニュー。iPhone のインスタントホットスポットはここにしか出ない）
 //   camera                カメラが使用中なら 1、そうでなければ 0（コントロールセンターの表示から判定）
 //   key <名前>            決まったキー操作を送る（ime-next = ⌃Space / emoji = ⌃⌘Space / menu-search = ⌘⇧/）
 //   extras                コントロールセンターの項目の識別子の一覧（sketchybar-doctor の点検用）
@@ -141,18 +141,11 @@ static NSString *handle(NSArray<NSString *> *args) {
     return @"ok";
   }
 
-  // BetterDisplay はメニューバーの項目が 1 つだけなので、識別子ではなくアプリで探す
-  if ([cmd isEqual:@"extra-click"] && args.count == 2 && [args[1] isEqual:@"betterdisplay"]) {
-    id item = appExtras(@"pro.betterdisplay.BetterDisplay", NO).firstObject;
-    if (!item) return @"ERROR notfound";
-    pressLater(item);
-    return @"ok";
-  }
-
   if ([cmd isEqual:@"extra-click"] && args.count == 2) {
     NSDictionary *allowed = @{
       @"clock" : @"com.apple.menuextra.clock",
       @"audiovideo" : @"com.apple.menuextra.audiovideo",
+      @"wifi" : @"com.apple.menuextra.wifi",
     };
     NSString *ident = allowed[args[1]];
     if (!ident) return @"ERROR unknown";

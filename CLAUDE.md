@@ -46,7 +46,7 @@ rebuild   # zsh エイリアス
 | `pkgs/ymuse/` | mpd の GUI ymuse の Mac 向け手直し: nixpkgs の SVG 読み込み部品（librsvg の `libpixbufloader_svg.dylib`）は `@rpath` が解決できず読めないため、コピーして librsvg の場所を書き込み・署名し直し、それを含む `loaders.cache` を使う（ないとボタンのアイコンが灰色の四角）。包み方を変えてアプリ名を `.ymuse-wrapped` でなく `ymuse` に |
 | `pkgs/runcat/` | sketchybar の CPU で走る猫のシルエット 5 コマ（`gen.py`、Pillow） |
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
-| `pkgs/ax-agent/` | アクセシビリティが必要な操作（前面アプリのメニューを読む・開く、通知センター・ビデオエフェクトを開く、カメラの使用中の判定、⌃Space などのキー操作）だけを行う常駐プログラム（Objective-C）。sketchybar は `~/Library/Caches/sketchybar-ax/sock` に 1 行で頼む（`ax` 関数、lib.nix）。アクセシビリティはこれだけに与える |
+| `pkgs/ax-agent/` | アクセシビリティが必要な操作（前面アプリのメニューを読む・開く、通知センター・ビデオエフェクト・Wi-Fi メニューを開く、カメラの使用中の判定、⌃Space などのキー操作）だけを行う常駐プログラム（Objective-C）。sketchybar は `~/Library/Caches/sketchybar-ax/sock` に 1 行で頼む（`ax` 関数、lib.nix）。アクセシビリティはこれだけに与える |
 | `pkgs/protected-reader/` | 通知の履歴と集中モードの状態（保護領域）を読み、`~/Library/Caches/sketchybar-protected` に書き出す常駐プログラム（Objective-C）。フルディスクアクセスはこれだけに与える |
 | `pkgs/focus-shortcuts/` | 集中モードの切り替え用ショートカットを用意するコマンド `focus-shortcuts`。中身（署名前）は `gen.py` でビルド時に作り、署名と取り込みは実行時。モードの一覧は modules/sketchybar/shared.nix の `focusModes` |
 
@@ -136,7 +136,7 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 | Apple | アイコン | この Mac について / システム設定 / ソフトウェアアップデート / App Store / アクティビティモニタ / スリープ / 画面ロック（`pmset displaysleepnow`）/ 再起動・システム終了・ログアウト（確認ダイアログ） |
 | 前面アプリ | アプリ名（緑） | そのアプリのメニュー（ファイル・編集…）の一覧。メニューは ax-agent が読み、選ぶと ax-agent が隠れている標準メニューバーの項目を押して、本物のメニューがバーのすぐ下に開く（前面アプリのものだけ）。メニューを検索（⌘⇧/ を送る） |
 | VPN | Tailscale か他の VPN が接続中なら緑 | Tailscale の状態・接続/切断・出口ノード選択（CLI `/usr/local/bin/tailscale`）、システムの VPN 一覧をクリックで接続/切断（`scutil --nc`、Tailscale は除外）、VPN 設定 |
-| ネットワーク | 有線 > Wi-Fi の順でアイコンのみ | Wi-Fi オン/オフ、接続中のネットワーク、**周囲のネットワーク一覧**（CoreWLAN でスキャン、電波の強さ・鍵の有無をアイコン表示、クリックで接続。鍵ありで未登録ならパスワードを尋ねる）、有線 IP・Wi-Fi IP・ルーター・DNS、Wi-Fi / ネットワーク設定 |
+| ネットワーク | 有線 > Wi-Fi の順でアイコンのみ | Wi-Fi オン/オフ、接続中のネットワーク、**周囲のネットワーク一覧**（CoreWLAN でスキャン、電波の強さ・鍵の有無をアイコン表示、クリックで接続。鍵ありで未登録ならパスワードを尋ねる）、**iPhone のテザリング…**（インスタントホットスポットは CoreWLAN のスキャンに出ないので、隠れた標準メニューバーの `com.apple.menuextra.wifi` を ax-agent が押し、標準の Wi-Fi メニューの「パーソナルホットスポット」から選ぶ）、有線 IP・Wi-Fi IP・ルーター・DNS、Wi-Fi / ネットワーク設定 |
 | Bluetooth | オフ / オン / 接続中で色分け（`blueutil`） | オン/オフ、ペアリング済みデバイスをクリックで接続/切断、Bluetooth 設定 |
 | 音量 | スクロールで音量調整 | 出力音量スライダー（右に %）・ミュート・出力デバイス選択、入力音量スライダー（右に %）・入力デバイス選択（`SwitchAudioSource`）、サウンド設定 |
 | 電池 | 残量 | 残量・電源・残り時間、**電力モード**（自動 / 低電力 / 高出力をバッテリー・電源アダプタ別に。`pmset powermode`、変更時に管理者パスワードの画面が出る）、アクティビティモニタ、バッテリー設定 |
@@ -190,7 +190,7 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
 - **アクセシビリティの操作は ax-agent に分けている**（pkgs/ax-agent、launchd のユーザーエージェント）。理由は protected-reader と同じ
   （sketchybar にアクセシビリティを与えると、この Mac の何からでも画面を操作できてしまう）。
   - sketchybar は `ax <操作>`（lib.nix。`nc -U` で `~/Library/Caches/sketchybar-ax/sock` に 1 行送る）で頼む。ソケットとディレクトリは自分だけが使える。
-  - できる操作は固定: `menus` / `menu-open <pid> <番号>`（前面アプリだけ）/ `extra-click clock|audiovideo|betterdisplay`（betterdisplay は押してもメニューが出ないので使っていない。次に ax-agent を作り直すときに消す） / `camera` / `key ime-next|emoji|menu-search` / `extras` / `trusted`。
+  - できる操作は固定: `menus` / `menu-open <pid> <番号>`（前面アプリだけ）/ `extra-click clock|audiovideo|wifi` / `camera` / `key ime-next|emoji|menu-search` / `extras` / `trusted`。
   - System Events（osascript）は使わない: Apple Events では許可の確認が osascript に対して行われ、sketchybar の許可が効かないため。
   - sketchybar には**オートメーション（System Events）も与えない**（使っていない）。一覧に出たら画面からは外せない（.app でないため）ので
     `tccutil reset AppleEvents`（全アプリのオートメーション許可を消す。cmux などは次に使うときにまた聞かれる）。
@@ -257,7 +257,7 @@ AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`
 | Nix と Homebrew のインストール、このリポジトリを `~/.config/nix-darwin` に置く | ターミナル | rebuild の前提（README の「新しい Mac にセットアップする」） |
 | **FileVault** をオン | プライバシーとセキュリティ > FileVault | ディスクの暗号化。ノート PC なので必須。`sketchybar-doctor` で点検 |
 | protected-reader に **フルディスクアクセス** | プライバシーとセキュリティ > フルディスクアクセス で「＋」→ ⌘⇧G でパスを入力 | 通知一覧・集中モードの状態を読む。パスは `launchctl print gui/$(id -u)/org.nixos.protected-reader \| grep program`。**sketchybar には与えない**（与えていたら外す） |
-| ax-agent に **アクセシビリティ** | 同 > アクセシビリティ | アプリのメニュー、通知センター・ビデオエフェクトを開く、カメラの判定、入力ソース切り替え、絵文字。許可がないと頼まれた時点で終了し launchd が起動し直すので、付け直したあと再起動は要らない（最大 30 秒。急ぐなら `launchctl kickstart -k gui/$(id -u)/org.nixos.ax-agent`）。パスは `launchctl print gui/$(id -u)/org.nixos.ax-agent \| grep program`。**sketchybar には与えない**（与えていたら外す） |
+| ax-agent に **アクセシビリティ** | 同 > アクセシビリティ | アプリのメニュー、通知センター・ビデオエフェクト・Wi-Fi メニュー（テザリング）を開く、カメラの判定、入力ソース切り替え、絵文字。許可がないと頼まれた時点で終了し launchd が起動し直すので、付け直したあと再起動は要らない（最大 30 秒。急ぐなら `launchctl kickstart -k gui/$(id -u)/org.nixos.ax-agent`）。パスは `launchctl print gui/$(id -u)/org.nixos.ax-agent \| grep program`。**sketchybar には与えない**（与えていたら外す） |
 | sketchybar に **Bluetooth**・**カレンダー** | 初回に出る確認で許可 | `blueutil`、`icalBuddy` / `event.js` |
 | menubar-click-guard に **アクセシビリティ** | プライバシーとセキュリティ > アクセシビリティ | パスは `/nix/store/…-menubar-click-guard-1.0/bin/menubar-click-guard`。許可がないと 30 秒ごとに再試行 |
 | AeroSpace に **アクセシビリティ** | 同上 | ウィンドウ操作 |
@@ -281,7 +281,7 @@ sketchybar は macOS が公開していない仕組みに頼っている。macOS
 |----------------|----------|------------------|
 | 通知センターのデータベースの形式（`record` / `app` テーブル、`req` の `titl` / `subt` / `body`） | pkgs/protected-reader | 通知一覧が「読めない」 |
 | 集中モードの状態ファイル `Assertions.json` の形式 | pkgs/protected-reader | 集中モードが常に ○ |
-| コントロールセンターの項目の識別子（`com.apple.menuextra.clock` / `.controlcenter` / `.audiovideo`） | pkgs/ax-agent/main.m | 通知センター・ビデオエフェクトが開かない、カメラが出ない |
+| コントロールセンターの項目の識別子（`com.apple.menuextra.clock` / `.controlcenter` / `.audiovideo` / `.wifi`） | pkgs/ax-agent/main.m | 通知センター・ビデオエフェクト・Wi-Fi メニュー（テザリング）が開かない、カメラが出ない |
 | sketchybar 本体のソース（`bar_manager.c` の 1 行） | default.nix のパッチ | ビルドが失敗する（`--replace-fail`） |
 | 画面上端のクリックの扱い | pkgs/menubar-click-guard | 上端のクリックが標準メニューバーに抜ける |
 | ショートカットの「集中モードを設定」アクションの形式 | pkgs/focus-shortcuts/gen.py | 取り込んだショートカットが動かない |

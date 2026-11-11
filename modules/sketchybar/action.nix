@@ -86,7 +86,7 @@ rec {
 
     pane() { open "x-apple.systempreferences:$1"; }
     refresh() { sleep "$1"; sketchybar --update; }
-    # click_menuextra <clock / audiovideo>: 隠れている標準メニューバーの項目をクリック（ax-agent に頼む。失敗なら偽）
+    # click_menuextra <clock / audiovideo / wifi>: 隠れている標準メニューバーの項目をクリック（ax-agent に頼む。失敗なら偽）
     click_menuextra() { [ "$(ax extra-click "$1")" = ok ]; }
 
     case "$1" in
@@ -269,6 +269,11 @@ rec {
         fi
         [ -n "$out" ] && notify_msg "Wi-Fi に接続できませんでした" "$out"
         refresh 3 ;;
+      # iPhone のテザリング（インスタントホットスポット）: CoreWLAN のスキャンには出ないので、
+      # 標準メニューバーの Wi-Fi メニューを開き、その「パーソナルホットスポット」から選んでもらう
+      wifi-hotspot)
+        click_menuextra wifi \
+          || notify_msg "iPhone のテザリング" "Wi-Fi メニューを開けませんでした（ax-agent の許可を確認: sketchybar-doctor）" ;;
       # ビデオエフェクト（ポートレート・センターフレーム・背景など）: カメラ使用中だけ標準メニューバーに出る
       # 「オーディオとビデオのコントロール」をクリックして開く
       camera-effects)

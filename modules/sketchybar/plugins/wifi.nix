@@ -72,6 +72,8 @@ rec {
           fi
         done 2>/dev/null < "$WIFI_SCAN"
         [ "$i" -eq 0 ] && menu_item $p net.none "󰖩" "検索中です…"
+        # iPhone のインスタントホットスポットは上の一覧に出ないので、標準の Wi-Fi メニューを開く
+        menu_item $p hotspot "󰐼" "iPhone のテザリング…" wifi-hotspot
       else
         menu_item $p power "󰐥" "Wi-Fi: オフ（クリックでオン）" wifi-power on
       fi
