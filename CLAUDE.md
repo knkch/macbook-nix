@@ -251,7 +251,7 @@ AeroSpace キー: `alt-hjkl` フォーカス / `alt-shift-hjkl` 移動 / `alt-N`
 - `pkgs/ymuse` は nixpkgs の librsvg / gdk-pixbuf のファイル配置（`lib/gdk-pixbuf-2.0/2.10.0/loaders/…`、`librsvg-2.2.dylib`）に頼っている。
   `nix flake update` で配置が変わると、SVG が入っていなければビルドが止まる（`grep -q svg`）。nixpkgs 側で直れば手直しは不要になる。
 - 既存の Mac では、Brewfile から外したもの（例: Rigelian）は `rebuild` の片付けでアンインストールされる。新しい Mac では入らないだけ。
-- **リモートの git リポジトリはまだない**。この Mac が壊れると設定も失われるので、プライベートなリポジトリへの push を推奨。
+- リモート: https://github.com/knkch/macbook-nix（**公開**）。秘密情報・個人情報（メールアドレス、Wi-Fi の名前、IP など）は書かない。README は英語。
 
 ### 手作業が必要な設定（新しい Mac・作り直したとき）
 

@@ -1,335 +1,353 @@
 # MacBook-Pro — nix-darwin Config
 
-nix-darwin + home-manager による macOS 環境の宣言的管理。
+A declarative macOS setup built with nix-darwin and home-manager.
 
-- **ホスト**: KokinoMacBook-Pro
-- **アーキテクチャ**: aarch64-darwin (Apple Silicon)
-- **チャンネル**: nixpkgs-25.05-darwin (stable)
+- **Host**: KokinoMacBook-Pro
+- **Architecture**: aarch64-darwin (Apple Silicon)
+- **Channel**: nixpkgs-25.05-darwin (stable)
 
-## クイックスタート
+> Comments in the Nix files and the detailed notes in [CLAUDE.md](CLAUDE.md) are written in Japanese.
+
+## Quick start
 
 ```bash
-# 設定を適用
+# Apply the configuration
 sudo darwin-rebuild switch --flake ~/.config/nix-darwin
 
-# エイリアス（適用後）
+# Alias (after the first apply)
 rebuild
 ```
 
-> flake は git 管理下のファイルのみ参照する。新規ファイルは `git add` してから適用。
+> Flakes only see files tracked by git. `git add` new files before applying.
 
-**方針**: このリポジトリと `rebuild` だけで、何回実行しても同じ状態になるようにしている（冪等）。
-macOS の仕様で自動化できない設定は「[手作業が必要な設定](#手作業が必要な設定)」にまとめてある。
+**Policy**: this repository plus `rebuild` should always produce the same state, no matter how many times it runs (idempotent).
+Settings that macOS does not allow to be automated are listed under [Manual setup](#manual-setup).
 
-## 新しい Mac にセットアップする
+## Setting up a new Mac
 
 ```bash
-# 1. コマンドラインツール
+# 1. Command line tools
 xcode-select --install
 
-# 2. Nix（公式インストーラ・マルチユーザー）
+# 2. Nix (official installer, multi-user)
 curl -L https://nixos.org/nix/install | sh -s -- --daemon
 
-# 3. Homebrew（cask / App Store アプリの管理に使う）
+# 3. Homebrew (used for casks and App Store apps)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# 4. このリポジトリを置く（リモートがない場合は、元の Mac からフォルダごとコピー）
-git clone <リポジトリの URL> ~/.config/nix-darwin
+# 4. Clone this repository
+git clone https://github.com/knkch/macbook-nix.git ~/.config/nix-darwin
 
-# 5. 初回の適用（まだ darwin-rebuild がないので nix run で呼ぶ）
+# 5. First apply (darwin-rebuild does not exist yet, so run it through nix run)
 sudo nix --extra-experimental-features 'nix-command flakes' \
   run nix-darwin/nix-darwin-25.05#darwin-rebuild -- switch --flake ~/.config/nix-darwin
 ```
 
-- ホスト名が `KokinoMacBook-Pro`、ユーザー名が `konkichi` でない場合は `flake.nix` の `host` / `user` を直す。
-- 2 回目以降は `rebuild` だけ。
-- 最後に「[手作業が必要な設定](#手作業が必要な設定)」を上から順に行い、一度ログアウトする。
+- If your host name is not `KokinoMacBook-Pro` or your user name is not `konkichi`, change `host` / `user` in `flake.nix`.
+- After that, just run `rebuild`.
+- Finally, go through [Manual setup](#manual-setup) from top to bottom and log out once.
 
-## ファイル構成
+## Layout
 
 ```
 .
-├── flake.nix              # inputs / outputs（user・host を一元定義）
+├── flake.nix              # inputs / outputs (user and host are defined once here)
 ├── flake.lock
-├── CLAUDE.md              # 詳細ドキュメント
+├── CLAUDE.md              # detailed notes (Japanese)
 ├── modules/
-│   ├── system.nix         # nix 設定・ユーザー・PATH・システムパッケージ・macOS defaults
-│   ├── homebrew.nix       # casks / brews / masApps / VS Code 拡張 / cleanup
-│   ├── desktop.nix        # jankyborders・menubar-click-guard（sketchybar を読み込む）
-│   └── sketchybar/        # sketchybar 一式
-│       ├── default.nix    #   サービスとバーの設定・protected-reader の常駐
-│       ├── shared.nix     #   共通部品（集中モードの一覧 focusModes など）
-│       ├── lib.nix        #   各プラグインが読み込む共通関数
-│       ├── action.nix     #   メニューの行を押したときの操作
-│       ├── doctor.nix     #   sketchybar-doctor（点検）
-│       └── plugins/       #   バーの各項目（1 ファイル 1 項目）
+│   ├── system.nix         # nix settings, users, PATH, system packages, macOS defaults
+│   ├── homebrew.nix       # casks / brews / masApps / VS Code extensions / cleanup
+│   ├── desktop.nix        # jankyborders, menubar-click-guard (imports sketchybar)
+│   └── sketchybar/        # everything for sketchybar
+│       ├── default.nix    #   service, bar settings, protected-reader agent
+│       ├── shared.nix     #   shared parts (focus mode list `focusModes`, etc.)
+│       ├── lib.nix        #   shell functions loaded by every plugin
+│       ├── action.nix     #   what happens when a menu row is clicked
+│       ├── doctor.nix     #   sketchybar-doctor (health check)
+│       └── plugins/       #   one file per bar item
 ├── pkgs/
-│   ├── menubar-click-guard/  # 画面上端のクリックを sketchybar に届ける常駐プログラム（C）
-│   ├── calendar/          # 時計メニューのカレンダー画像（render.py）・予定の追加（event.js）
-│   ├── focus-shortcuts/   # 集中モードの切り替え用ショートカットを用意するコマンド
-│   ├── protected-reader/  # 通知・集中モードの状態を読む常駐プログラム（フルディスクアクセスはこれだけ）
-│   └── runcat/            # CPU で走る猫のドット絵
+│   ├── ax-agent/          # agent that performs accessibility actions on behalf of sketchybar (Objective-C)
+│   ├── menubar-click-guard/  # agent that keeps top-edge clicks on sketchybar (C)
+│   ├── calendar/          # calendar images for the clock menu (render.py) and event editing (event.js)
+│   ├── focus-shortcuts/   # command that prepares Shortcuts for switching focus modes
+│   ├── protected-reader/  # agent that reads notification / focus state (the only one with Full Disk Access)
+│   ├── runcat/            # pixel art for the running cat
+│   └── ymuse/             # macOS fixes for the ymuse MPD client
 └── home/
-    ├── default.nix        # ユーザー情報・dotfiles・imports
-    ├── packages.nix       # CLI / インフラ / クラウド
-    ├── gpg.nix            # GnuPG と gpg-agent（pinentry-mac）
-    ├── security.nix       # セキュリティツール群（my.security.enable）
-    ├── shell.nix          # zsh・starship・atuin・zoxide・fzf・bat・eza・lazygit・direnv
-    ├── git.nix            # git + delta
-    ├── nixvim.nix         # Neovim（nixvim）
-    ├── desktop.nix        # AeroSpace・Ghostty
-    ├── music.nix          # mpd・rmpc・mpc
-    ├── rmpc/              # rmpc の設定とテーマ（tokyonight）
-    ├── yazi.nix           # Yazi（ファイルの開き方: 動画・音声は mpv）
-    └── vscode.nix         # VS Code 表示言語
+    ├── default.nix        # user info, dotfiles, imports
+    ├── packages.nix       # CLI / infrastructure / cloud tools
+    ├── gpg.nix            # GnuPG and gpg-agent (pinentry-mac, also the SSH agent)
+    ├── security.nix       # security tools (my.security.enable)
+    ├── shell.nix          # zsh, starship, atuin, zoxide, fzf, bat, eza, lazygit, direnv
+    ├── git.nix            # git + delta, signed commits
+    ├── nixvim.nix         # Neovim (nixvim)
+    ├── desktop.nix        # AeroSpace, Ghostty
+    ├── music.nix          # mpd, rmpc, mpc
+    ├── rmpc/              # rmpc config and theme (tokyonight)
+    ├── yazi.nix           # Yazi (video and audio open in mpv)
+    └── vscode.nix         # VS Code display language
 ```
 
-## 管理しているもの
+## What is managed where
 
-| 種別 | 管理方法 |
-|------|----------|
-| システムパッケージ | `environment.systemPackages` (modules/system.nix) |
-| ユーザー開発ツール | `home.packages` / `programs.*` (home/) |
-| GUI アプリ・Claude Code | `homebrew.casks` (modules/homebrew.nix) |
-| App Store アプリ | `homebrew.masApps` (modules/homebrew.nix) |
-| VS Code 本体・拡張 | cask + Brewfile `vscode` 行 (modules/homebrew.nix) |
-| 常駐サービス | `services.sketchybar`・protected-reader (modules/sketchybar/)、`services.jankyborders`・menubar-click-guard (modules/desktop.nix)、mpd (home/music.nix) |
-| VS Code 設定 (`settings.json`) | Nix 管理外・VS Code が直接書き込み |
-| 集中モードのショートカット | `focusModes` (modules/sketchybar/shared.nix) から生成し、`focus-shortcuts` で取り込む |
+| Kind | How |
+|------|-----|
+| System packages | `environment.systemPackages` (modules/system.nix) |
+| User tools | `home.packages` / `programs.*` (home/) |
+| GUI apps, Claude Code | `homebrew.casks` (modules/homebrew.nix) |
+| App Store apps | `homebrew.masApps` (modules/homebrew.nix) |
+| VS Code and extensions | cask + Brewfile `vscode` lines (modules/homebrew.nix) |
+| Background services | `services.sketchybar`, protected-reader, ax-agent (modules/sketchybar/), `services.jankyborders`, menubar-click-guard (modules/desktop.nix), mpd (home/music.nix), gpg-agent (home/gpg.nix) |
+| VS Code `settings.json` | not managed by Nix; VS Code writes it directly |
+| Focus mode shortcuts | generated from `focusModes` (modules/sketchybar/shared.nix), imported with `focus-shortcuts` |
 
-> Brewfile にないアプリは rebuild 時に削除される（`brew bundle cleanup`）。
+> Apps missing from the Brewfile are uninstalled on every rebuild (`brew bundle cleanup`).
 
-## よく使う操作
+## Common tasks
 
-| やりたいこと | 方法 |
-|--------------|------|
-| 設定を反映 | `rebuild` |
-| CLI ツールを追加 | `home/packages.nix` に追記 → `rebuild` |
-| GUI アプリを追加 | `modules/homebrew.nix` の `casks` に追記 → `rebuild` |
-| 手動で入れたアプリを cask 管理へ移す | `brew install --cask --adopt <cask>` → `casks` に追記 → `rebuild`（先に adopt しないと「既にアプリがある」で失敗） |
-| App Store アプリを追加 | `masApps` に `"名前" = ID;`（ID は `mas search 名前`）→ `rebuild` |
-| VS Code 拡張を追加 | `modules/homebrew.nix` の `vscodeExtensions` に追記 → `rebuild` |
-| Claude Code を更新 | `rebuild`（自動で最新化）または `brew upgrade --cask claude-code` |
-| セキュリティツールを外す | `home/default.nix` に `my.security.enable = false;` |
-| 新しい .nix ファイルを作った | `git add` してから `rebuild`（flake は git 管理下のみ参照） |
-| 設定を前の状態に戻す | `git log` で確認 → `git checkout <コミット>` → `rebuild` |
-| Nix のパッケージを更新 | `nix flake update` → `rebuild`（版は `flake.lock` で固定されている） |
-| 集中モードを増やす | 下の「[集中モード](#集中モードsketchybar-の通知メニュー)」 |
-| 集中モードのショートカットが消えた | `focus-shortcuts` →「ショートカットを追加」を押す |
-| macOS を更新した・バーの一部が動かない | `sketchybar-doctor`（壊れている箇所と直し方を表示） |
+| Task | How |
+|------|-----|
+| Apply changes | `rebuild` |
+| Add a CLI tool | add it to `home/packages.nix` → `rebuild` |
+| Add a GUI app | add it to `casks` in `modules/homebrew.nix` → `rebuild` |
+| Bring a manually installed app under cask management | `brew install --cask --adopt <cask>` → add to `casks` → `rebuild` (without adopting first, the rebuild fails because the app already exists) |
+| Add an App Store app | add `"Name" = ID;` to `masApps` (find the ID with `mas search Name`) → `rebuild` |
+| Add a VS Code extension | add it to `vscodeExtensions` in `modules/homebrew.nix` → `rebuild` |
+| Update Claude Code | `brew upgrade --cask claude-code` (rebuild normally updates it too; see the note below) |
+| Remove the security tools | set `my.security.enable = false;` in `home/default.nix` |
+| Created a new .nix file | `git add` it, then `rebuild` |
+| Roll back | find the commit with `git log` → `git checkout <commit>` → `rebuild` |
+| Update Nix packages | `nix flake update` → `rebuild` (versions are pinned in `flake.lock`) |
+| Add a focus mode | see [Focus modes](#focus-modes-sketchybar-notification-menu) |
+| Focus mode shortcuts are gone | `focus-shortcuts` → press "Add Shortcut" |
+| macOS was updated / part of the bar stopped working | `sketchybar-doctor` (shows what is broken and how to fix it) |
 
-> ⚠️ **Homebrew は Brewfile が唯一の正。** `brew install` で手動追加したアプリは、
-> `modules/homebrew.nix` に書かないと次の `rebuild` でアンインストールされる。
+> ⚠️ **The Brewfile is the single source of truth for Homebrew.** Anything installed with a plain `brew install`
+> is removed on the next `rebuild` unless it is also listed in `modules/homebrew.nix`.
 
-## 主なツール
+## Main tools
 
-### デスクトップ
+### Desktop
 
-| ツール | 管理 | 概要 |
-|--------|------|------|
-| AeroSpace | cask + `programs.aerospace` | タイル型 WM。ログイン時に自動起動 |
-| Sketchybar | `services.sketchybar`（パッチ版） | 左: Apple メニュー・ワークスペース 1〜9・前面アプリ（クリックでそのアプリのメニュー）/ ノッチの左: 再生中の曲・右: CPU で走る猫 / 右: カメラ（使用中のみ）・VPN・ネットワーク・Bluetooth・入力ソース・音量・電池・時計・通知（クリックでメニュー。詳細は CLAUDE.md） |
-| ax-agent | launchd ユーザーエージェント | アクセシビリティが必要な操作だけを sketchybar の代わりに行う（要アクセシビリティ。sketchybar には与えない） |
-| menubar-click-guard | launchd ユーザーエージェント | 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ（要アクセシビリティ） |
-| jankyborders | `services.jankyborders` | アクティブウィンドウの枠線 |
-| Ghostty | `xdg.configFile` | ターミナル（Hack Nerd Font / tokyonight） |
-| macSKK | cask + dotfile | 日本語 IME（SKK-JISYO.L） |
+| Tool | Managed by | Notes |
+|------|------------|-------|
+| AeroSpace | cask + `programs.aerospace` | tiling window manager, starts at login |
+| Sketchybar | `services.sketchybar` (patched build) | left: Apple menu, workspaces 1–9, front app (click for its menus) / left of the notch: now playing, right of the notch: a cat that runs with CPU load / right: camera (only while in use), VPN, network, Bluetooth, input source, volume, battery, clock, notifications (click any item for a menu; details in CLAUDE.md) |
+| ax-agent | launchd user agent | performs the accessibility actions sketchybar needs (needs Accessibility; sketchybar itself gets none) |
+| menubar-click-guard | launchd user agent | stops clicks on the top edge and corners from reaching the standard menu bar (needs Accessibility) |
+| jankyborders | `services.jankyborders` | border around the active window |
+| Ghostty | `xdg.configFile` | terminal (Hack Nerd Font / tokyonight) |
+| macSKK | cask + dotfile | Japanese input method (SKK-JISYO.L) |
 
-- macOS のメニューバーは常に表示し、sketchybar（同じ高さ 33・不透明）で上から覆う（通知バナーがバーの下に出るように）。AeroSpace の隙間は 3。
-- 時計メニュー: 画像で描く月カレンダー（祝日・予定の件数バッジ）、日付を押すとその日の予定、予定の追加・編集・削除（通知付き。Google / Outlook はインターネットアカウントに追加すると同期）。
-- 「ディスプレイごとに個別の操作スペース」はオフ（AeroSpace 推奨、反映にはログアウトが必要）。
-- Dock は自動非表示、操作スペースの自動並べ替えはオフ、Mission Control はアプリごとにグループ化。
-- ステージマネージャ・壁紙クリックでデスクトップ表示・macOS 標準のウィンドウタイル（画面端ドラッグ / Option+ドラッグ）はオフ（AeroSpace と競合するため）。
-- 初回のみ手動: AeroSpace にアクセシビリティ許可を与え、標準の Space を各ディスプレイ 1 つに減らす。
+- The macOS menu bar always stays visible and sketchybar (same height 33, opaque) covers it, so notification banners appear below the bar. AeroSpace gaps are 3.
+- Clock menu: a month calendar drawn as images (holidays, event count badges), click a day to see its events, add / edit / delete events with alerts (Google / Outlook calendars sync once added under Internet Accounts).
+- Network menu: nearby Wi-Fi networks, plus "iPhone のテザリング…" (iPhone tethering), which opens the standard Wi-Fi menu because Instant Hotspot does not show up in a normal scan.
+- Menus stay open for 0.6 s after the mouse leaves them, so a small slip does not close them.
+- "Displays have separate Spaces" is off (recommended by AeroSpace; needs a logout to take effect).
+- Dock auto-hides, Spaces are not rearranged automatically, Mission Control groups windows by app.
+- Stage Manager, click-wallpaper-to-show-desktop and macOS window tiling (edge drag / Option-drag) are off because they conflict with AeroSpace.
+- One-time manual steps: give AeroSpace Accessibility access and reduce the standard Spaces to one per display.
 
-#### 集中モード（sketchybar の通知メニュー）
+#### Focus modes (sketchybar notification menu)
 
-通知（ベル）のメニューで、集中モードを 1 行ずつオン / オフできる（オンは ● と緑）。
-切り替えはショートカットアプリの「集中モード: <名前> オン / オフ」を実行して行う。
+The notification (bell) menu lists each focus mode on its own row and toggles it (● and green when on).
+Switching runs the Shortcuts "集中モード: <name> オン / オフ" (focus mode on / off).
 
-| やりたいこと | 方法 |
-|--------------|------|
-| ショートカットがそろっているか確認 | `focus-shortcuts --check` |
-| 足りないショートカットを取り込む | `focus-shortcuts`（または通知メニューの「ショートカットを追加…」）→ 出てきた画面で「ショートカットを追加」 |
-| 集中モードを増やす | ① システム設定 > 集中モード で追加 → ② `modules/sketchybar/shared.nix` の `focusModes` に 1 行足す（名前・識別子・表示名）→ ③ `rebuild` → ④ `focus-shortcuts` |
-| 集中モードをやめる | `focusModes` から消して `rebuild` → ショートカットアプリでその 2 つを削除 |
+| Task | How |
+|------|-----|
+| Check that all shortcuts exist | `focus-shortcuts --check` |
+| Import missing shortcuts | `focus-shortcuts` (or "ショートカットを追加…" in the notification menu) → press "Add Shortcut" |
+| Add a focus mode | ① add it in System Settings > Focus → ② add one line (name, identifier, label) to `focusModes` in `modules/sketchybar/shared.nix` → ③ `rebuild` → ④ `focus-shortcuts` |
+| Remove a focus mode | delete it from `focusModes` and `rebuild` → delete its two shortcuts in the Shortcuts app |
 
-- いま登録しているのは おやすみ・睡眠・仕事。ショートカットはフォルダ「SketchyBar」にまとめている。
-- 標準モードの識別子は CLAUDE.md の「集中モード」に一覧がある。自分で作ったモードの識別子の調べ方も同じ場所。
-- `rebuild` のたびにショートカットがそろっているか確認し、足りなければメッセージを出す（取り込み画面は勝手に開かない）。
+- Currently registered: Do Not Disturb, Sleep and Work. The shortcuts live in the "SketchyBar" folder.
+- Identifiers of the built-in modes, and how to find the identifier of a custom mode, are in the "集中モード" section of CLAUDE.md.
+- Every `rebuild` checks that the shortcuts exist and prints a message if any are missing (it never opens the import screen by itself).
 
-#### AeroSpace キー
+#### AeroSpace keys
 
-| キー | 動作 |
-|------|------|
-| `alt-h/j/k/l` | フォーカス移動 |
-| `alt-shift-h/j/k/l` | ウィンドウ移動 |
-| `alt-1`〜`9` | ワークスペース切り替え |
-| `alt-shift-1`〜`9` | ウィンドウをワークスペースへ送る |
-| `alt-f` / `alt-shift-f` | フルスクリーン / フローティング切り替え |
-| `alt-/` / `alt-,` | タイル / アコーディオン切り替え |
-| `alt-tab` / `alt-shift-tab` | ワークスペースを次のモニターへ / モニター間フォーカス |
+| Key | Action |
+|-----|--------|
+| `alt-h/j/k/l` | move focus |
+| `alt-shift-h/j/k/l` | move window |
+| `alt-1`–`9` | switch workspace |
+| `alt-shift-1`–`9` | send window to workspace |
+| `alt-f` / `alt-shift-f` | toggle fullscreen / floating |
+| `alt-/` / `alt-,` | tiles / accordion layout |
+| `alt-tab` / `alt-shift-tab` | move workspace to next monitor / focus across monitors |
 
-### シェル
+### Shell
 
-| キー・コマンド | 動作 |
-|----------------|------|
-| `Ctrl-R` | 履歴検索（atuin） |
-| `Ctrl-T` / `Alt-C` | ファイル / ディレクトリ検索（fzf） |
-| `z <dir>` | よく使うディレクトリへ移動（zoxide） |
+| Key / command | Action |
+|---------------|--------|
+| `Ctrl-R` | history search (atuin) |
+| `Ctrl-T` / `Alt-C` | file / directory search (fzf) |
+| `z <dir>` | jump to a frequent directory (zoxide) |
 | `ll` / `ls` | eza |
 | `cat` | bat |
 | `lg` | lazygit |
-| `vlc-bd` | Blu-ray 再生用に OpenJDK 17 を指定して VLC を起動 |
-| `music` | rmpc（音楽の操作画面）を開く |
-| `youtube` | youtube-tui（YouTube の操作画面。再生は mpv） |
-| `yy` | Yazi（ファイルマネージャー）。終了するとそのフォルダへ移動。写真は Enter でプレビュー、音声はターミナルで再生、動画は mpv（`O` でターミナル内再生も選べる） |
+| `vlc-bd` | start VLC with OpenJDK 17 for Blu-ray menus |
+| `music` | open rmpc (music player UI) |
+| `youtube` | youtube-tui (YouTube UI; playback in mpv) |
+| `yy` | Yazi file manager; on exit the shell moves to that folder. Photos preview with Enter, audio plays in the terminal, video opens in mpv (`O` lets you play inside the terminal) |
 
-### 音楽（`home/music.nix`）
+### Music (`home/music.nix`)
 
-| ツール | 管理 | 概要 |
-|--------|------|------|
-| mpd | `services.mpd` | 再生の本体。`~/Music/MyLibrary` を CoreAudio で再生。ログイン時に起動 |
-| rmpc | `programs.rmpc` | TUI（`music`）。アルバムアート表示（Kitty 方式）・tokyonight テーマ。上の帯の下に操作キーの案内（`p` 再生/一時停止・`s` 停止・`<` `>` 前/次・`b` `f` 巻き戻し/早送り・`,` `.` 音量・`x` ランダム・`z` リピート・`~` キー一覧）。帯のクリックで再生/一時停止、スクロールで音量、進行バーのクリックでその位置へ |
+| Tool | Managed by | Notes |
+|------|------------|-------|
+| mpd | `services.mpd` | the player. Plays `~/Music/MyLibrary` through CoreAudio, starts at login |
+| rmpc | `programs.rmpc` | TUI (`music`). Album art (Kitty protocol), tokyonight theme, a key hint row under the header (`p` play/pause, `s` stop, `<` `>` prev/next, `b` `f` seek, `,` `.` volume, `x` random, `z` repeat, `~` all keys). Click the header to play/pause, scroll for volume, click the progress bar to seek |
 | mpc | `home.packages` | `mpc toggle` / `next` / `prev` / `update` |
-| YouTube の曲 | rmpc `addyt` | `rmpc addyt <URL>`（rmpc の画面では `:addyt <URL>`）で YouTube の音声を落として再生リストに追加。`~/.cache/rmpc/youtube/` に保存 |
-| ymuse | `home.packages`（`pkgs/ymuse`） | 無料の GUI（同じ mpd を操作）。`ymuse` か sketchybar の曲メニューから開く |
+| YouTube tracks | rmpc `addyt` | `rmpc addyt <URL>` (`:addyt <URL>` inside rmpc) downloads the audio and adds it to the queue; files go to `~/.cache/rmpc/youtube/` |
+| ymuse | `home.packages` (`pkgs/ymuse`) | free GUI for the same mpd. Run `ymuse` or open it from the sketchybar music menu |
 
-> 曲を追加したら `mpc update`。じっくり聴くときは JRiver Media Center（ビットパーフェクト・サンプリングレート自動切り替え）。
+> Run `mpc update` after adding music. For careful listening use JRiver Media Center (bit-perfect, automatic sample rate switching).
 
-### 開発
+### Development
 
-| ツール | 管理 | 概要 |
-|--------|------|------|
-| Claude Code | cask `claude-code` | rebuild のたびに最新化（nixpkgs 版は更新が遅いため不使用） |
-| VS Code | cask + Brewfile `vscode` 行 | 拡張は Marketplace 最新版（Pylance 含む） |
+| Tool | Managed by | Notes |
+|------|------------|-------|
+| Claude Code | cask `claude-code` | kept up to date by rebuild (the nixpkgs version lags behind) |
+| VS Code | cask + Brewfile `vscode` lines | extensions come from the Marketplace (including Pylance) |
 | Nixvim | `programs.nixvim` | LSP / treesitter / telescope |
-| OrbStack | cask | Docker / Linux VM |
-| Starship | `programs.starship` | プロンプト（Nerd Font シンボル） |
-| direnv + nix-direnv | `programs.direnv` | `.envrc` に `use flake` |
+| OrbStack | cask | Docker / Linux VMs |
+| Starship | `programs.starship` | prompt (Nerd Font symbols) |
+| direnv + nix-direnv | `programs.direnv` | put `use flake` in `.envrc` |
 
-### インフラ
+### Infrastructure
 
-| ツール | 概要 |
-|--------|------|
-| kubectl / helm / k9s | Kubernetes 操作 |
-| terraform / ansible | IaC / 構成管理 |
-| awscli2 / google-cloud-sdk | クラウド CLI |
-| nmap / mtr / iperf3 | ネットワーク診断 |
+| Tool | Notes |
+|------|-------|
+| kubectl / helm / k9s | Kubernetes |
+| terraform / ansible | IaC / configuration management |
+| awscli2 / google-cloud-sdk | cloud CLIs |
+| nmap / mtr / iperf3 | network diagnostics |
 | openlens | Kubernetes GUI |
-| tableplus | データベース GUI |
-| wireshark-app | パケットアナライザ（ChmodBPF 導入済み） |
+| tableplus | database GUI |
+| wireshark-app | packet analyzer (ChmodBPF installed) |
 
-### YubiKey
+### YubiKey and GPG
 
-| ツール | 入れ方 | 概要 |
-|--------|--------|------|
-| ykman（yubikey-manager） | `home/packages.nix` | PIN・FIDO2・PIV・OATH の設定と管理（`ykman info` で確認） |
-| Yubico Authenticator | cask | 2 段階認証コード（TOTP）の表示・管理 |
-| paperkey | `home/packages.nix` | GPG の秘密鍵を紙のバックアップ用に書き出す |
-| GnuPG（gpg） | `home/gpg.nix` | 署名・暗号化・SSH（gpg-agent が SSH エージェントを兼ねる）。PIN は pinentry-mac の画面で入力。git のコミットは YubiKey で署名。`gpg --card-status` で確認 |
+| Tool | Installed by | Notes |
+|------|--------------|-------|
+| ykman (yubikey-manager) | `home/packages.nix` | manage PINs, FIDO2, PIV and OATH (`ykman info`) |
+| Yubico Authenticator | cask | show and manage TOTP codes |
+| paperkey | `home/packages.nix` | export a GPG secret key for a paper backup |
+| GnuPG (gpg) | `home/gpg.nix` | signing, encryption and SSH (gpg-agent doubles as the SSH agent). PINs are entered in pinentry-mac. Git commits are signed with the YubiKey. Check with `gpg --card-status` |
 
-### セキュリティ（`home/security.nix`）
+- The YubiKey holds the signing, encryption and authentication subkeys; the primary key is kept offline.
+- Every signature and SSH login needs a touch on the YubiKey (it blinks; there is no on-screen prompt after the first PIN entry).
+- macOS always sets `SSH_AUTH_SOCK` to its own ssh-agent, so zsh overrides it with the gpg-agent socket. GUI apps keep using the macOS ssh-agent.
 
-| ツール | 概要 |
-|--------|------|
-| nuclei / nikto / gobuster | 脆弱性スキャン |
-| burp-suite / caido / proxyman | Web プロキシ |
-| metasploit | エクスプロイトフレームワーク |
-| ghidra / radare2 | リバースエンジニアリング |
-| hashcat / john | パスワード解析 |
+### Security (`home/security.nix`)
+
+| Tool | Notes |
+|------|-------|
+| nuclei / nikto / gobuster | vulnerability scanning |
+| burp-suite / caido / proxyman | web proxies |
+| metasploit | exploitation framework |
+| ghidra / radare2 | reverse engineering |
+| hashcat / john | password cracking |
 | maltego | OSINT GUI |
 
 ### VPN / App Store
 
-| ツール | 概要 |
-|--------|------|
-| WireGuard / Tailscale | VPN（App Store 版） |
-| Slack / Windows App / Microsoft Excel / Brother iPrint&Scan | App Store 版 |
+| Tool | Notes |
+|------|-------|
+| WireGuard / Tailscale | VPN (App Store versions) |
+| Slack / Windows App / Microsoft Excel / Brother iPrint&Scan | App Store versions |
 
-### Nix / Homebrew 管理外のアプリ
+### Apps outside Nix and Homebrew
 
-手動インストールのまま残しているもの（理由は [CLAUDE.md](CLAUDE.md) を参照）:
-Parallels Desktop 26 / VMware Fusion 13 / MakeMKV 2.0 / e-Gov電子申請アプリケーション /
-Brother ドライバ（Push Scan Tool）/ Pioneer DJ FwUpdateManager（rekordbox に同梱）
+Kept as manual installs (reasons in [CLAUDE.md](CLAUDE.md)):
+Parallels Desktop 26 / VMware Fusion 13 / MakeMKV 2.0 / e-Gov electronic application app /
+Brother driver (Push Scan Tool) / Pioneer DJ FwUpdateManager (bundled with rekordbox)
 
-> Intel 専用（Rosetta が必要）: Maltego / e-Gov電子申請アプリケーション / Brother ドライバの常駐プロセス
+> Intel-only (needs Rosetta): Maltego / the e-Gov app / the Brother driver's background process
 
-## 手作業が必要な設定
+## Manual setup
 
-macOS が外からの設定を許していないため、`rebuild` では入れられないもの。新しい Mac や作り直したときに行う。
-詳しい理由とパスは [CLAUDE.md](CLAUDE.md) の「冪等性と手作業の設定」。
+Things `rebuild` cannot do because macOS does not allow them to be configured from outside. Do these on a new Mac or after reinstalling.
+Reasons and paths are in the "冪等性と手作業の設定" section of [CLAUDE.md](CLAUDE.md).
 
-- [ ] **FileVault** をオンにする（システム設定 > プライバシーとセキュリティ。ディスクの暗号化。macOS の仕様で自動化できない）
-- [ ] protected-reader に **フルディスクアクセス**（通知一覧・集中モードの状態）。sketchybar には与えない
-- [ ] ax-agent に **アクセシビリティ**（アプリのメニュー・通知センター・ビデオエフェクト・カメラの判定・入力ソース・絵文字）。sketchybar には与えない
-- [ ] sketchybar に **Bluetooth**・**カレンダー**（初回に出る確認で許可）
-- [ ] menubar-click-guard と AeroSpace に **アクセシビリティ**
-- [ ] 標準の Space を各ディスプレイ 1 つに減らし、ログアウト
-- [ ] システム設定 > 集中モード に おやすみ・睡眠・仕事 を追加 → `focus-shortcuts` で取り込み → フォルダ「SketchyBar」へ移す
-- [ ] Blu-ray を見るなら `keydb.cfg` を `~/Library/Preferences/aacs/` に置く
-- [ ] Nix / Homebrew 管理外のアプリを入れる（上の一覧）
+- [ ] Turn on **FileVault** (System Settings > Privacy & Security; disk encryption cannot be automated)
+- [ ] Give protected-reader **Full Disk Access** (notification list and focus state). Do not give it to sketchybar
+- [ ] Give ax-agent **Accessibility** (app menus, Notification Center, video effects, Wi-Fi menu, camera detection, input source, emoji). Do not give it to sketchybar
+- [ ] Allow sketchybar **Bluetooth** and **Calendars** (accept the prompts on first use)
+- [ ] Give menubar-click-guard and AeroSpace **Accessibility**
+- [ ] Reduce the standard Spaces to one per display and log out
+- [ ] Add Do Not Disturb, Sleep and Work in System Settings > Focus → import with `focus-shortcuts` → move them to the "SketchyBar" folder
+- [ ] For Blu-ray playback, put `keydb.cfg` in `~/Library/Preferences/aacs/`
+- [ ] Install the apps outside Nix and Homebrew (list above)
+- [ ] For GPG / SSH, insert the YubiKey, import the public key and run `gpg --card-status`
 
-- [ ] 最後に `sketchybar-doctor` を実行して、全部 ✓ になるか確かめる
+- [ ] Finally run `sketchybar-doctor` and check that everything shows ✓
 
-> ファイアウォールとステルスモードは `rebuild` が自動でオンにする（手作業は不要）。
+> The firewall and stealth mode are turned on automatically by `rebuild`.
 
-> sketchybar・menubar-click-guard・protected-reader・ax-agent は、更新で場所（nix store のパス）が変わると許可を付け直す必要がある
-> （ふだんの設定変更では変わらず、`nix flake update` のあとなどに起きる）。`sketchybar-doctor` で分かる。
-> 古い許可は「プライバシーとセキュリティ」の一覧に残るので、ときどき削除する。
-> オートメーションの一覧に sketchybar が出たら `tccutil reset AppleEvents`（画面からは外せない）。
+> sketchybar, menubar-click-guard, protected-reader and ax-agent need their permissions granted again whenever their
+> location (nix store path) changes. Normal configuration changes do not change it; `nix flake update` can. `sketchybar-doctor` tells you.
+> Old entries stay in the Privacy & Security lists, so clean them up now and then.
+> If sketchybar appears in the Automation list, run `tccutil reset AppleEvents` (it cannot be removed from the UI).
 
-> Homebrew は `rebuild` のたびに最新版へ更新する設定（Claude Code などを常に最新にするため）。
-> そのため Homebrew で入るアプリの版だけは、実行した日によって変わる。
+> Homebrew normally upgrades everything on each `rebuild` (to keep Claude Code and others current), so Homebrew app versions depend on the day you run it.
+> As of 2026-11-11 this upgrade is temporarily off (`onActivation.upgrade = false`) because the media-center cask has a checksum mismatch.
 
-## 変更履歴
+## Changelog
 
-### 2026-10-30 メディア・アプリのメニュー・権限の分離
+### 2026-11-11 YubiKey, GPG and menu fixes
 
-- **メディア**: `youtube`（youtube-tui 0.9.4。標準の機能のまま）、Yazi を home-manager 管理に（`yy`。動画・音声は mpv、写真はプレビュー）。
-  rmpc のヘッダーに操作キーの案内。Rigelian（有料）を外し、無料の GUI **ymuse** に（`pkgs/ymuse` で Mac 向けに手直し）
-- **sketchybar**: 前面アプリ名をクリックでそのアプリのメニュー（ファイル・編集…）を開ける。メニューの検索（⌘⇧/）
-- **権限**: アクセシビリティの操作を **ax-agent** に分離。sketchybar はアクセシビリティ・フルディスクアクセス・オートメーションのどれも持たない
-- **Mac の守り**: ファイアウォールとステルスモードを `rebuild` でオンに。`sketchybar-doctor` でファイアウォール・FileVault も点検
+- **Privacy**: git now uses the GitHub noreply address, and the history was rewritten to remove the old address
+- **YubiKey / GPG**: ykman, Yubico Authenticator, paperkey and GnuPG. gpg-agent is the SSH agent, and commits are signed with the YubiKey
+- **sketchybar**: "iPhone tethering" in the Wi-Fi menu (opens the standard Wi-Fi menu through ax-agent); menus wait 0.6 s before closing
+- **Homebrew**: upgrades on rebuild are paused until the media-center checksum is fixed upstream
 
-### 2026-10-29 整理・冪等性
+### 2026-10-30 Media, app menus, split permissions
 
-- **整理**: sketchybar の使われていない処理（カメラ一覧、等幅のメニュー行、未使用の変数など）を削除、同じ AppleScript をまとめた。`font-hackgen`（未使用）と `xxd`（macOS 標準と重複）を削除
-- **集中モード**: モードの一覧を `focusModes`（modules/desktop.nix）に一本化（今は modules/sketchybar/shared.nix）。ショートカットを用意する `focus-shortcuts` を追加し、`rebuild` で不足を確認
-- **通知メニュー**: 「通知設定…」を通知の項目の下へ移し、「ショートカットを追加…」を追加
-- **ドキュメント**: 新しい Mac でのセットアップ手順、手作業が必要な設定の一覧を追加
-- **構成**: sketchybar を `modules/sketchybar/` に分割（1 ファイル 1 項目）。生成されるスクリプトは分割前と同一
-- **権限**: 通知・集中モードの状態を読む `protected-reader` を追加し、sketchybar からフルディスクアクセスを外せるように。通知のバッジがほぼ即時に更新される
-- **点検**: `sketchybar-doctor` を追加。macOS の更新で壊れうる箇所の一覧を CLAUDE.md に追加
+- **Media**: `youtube` (youtube-tui 0.9.4, standard features only), Yazi under home-manager (`yy`; video and audio in mpv, photos in Preview).
+  Key hints in the rmpc header. Replaced Rigelian (paid) with the free GUI **ymuse** (patched for macOS in `pkgs/ymuse`)
+- **sketchybar**: click the front app name to open that app's menus (File, Edit…); menu search (⌘⇧/)
+- **Permissions**: accessibility actions moved to **ax-agent**. sketchybar has no Accessibility, Full Disk Access or Automation
+- **Hardening**: the firewall and stealth mode are turned on by `rebuild`; `sketchybar-doctor` also checks the firewall and FileVault
 
-### 2026-10-29 sketchybar の作り込み・音楽
+### 2026-10-29 Cleanup and idempotency
 
-- **sketchybar**: 再び有効化。標準メニューバー相当の項目（Apple メニュー、ネットワーク / Wi-Fi の周囲一覧、Bluetooth、VPN、音量スライダー、電池と電力モード、入力ソース、カメラ、通知一覧と集中モード）を追加。メニューは行のハイライト付き・すりガラス風
-- **sketchybar**: 本体をパッチ版にしてメニューバーより手前に表示。高さ 33・不透明・ノッチ幅 186。標準メニューバーは常に表示して覆う（通知がバーの下に出る）
-- **menubar-click-guard**: 画面上端・上の角のクリックが標準メニューバーに抜けるのを防ぐ常駐プログラムを追加
-- **時計メニュー**: カレンダーを画像で描画（祝日・予定の件数バッジ・日付の選択）、予定の追加・編集・削除（通知付き）、カレンダーのアカウント設定への入口。Homebrew に `ical-buddy`
-- **音楽**: mpd + rmpc + mpc（`home/music.nix`）、rmpc のテーマ、Rigelian（App Store）。sketchybar のノッチの左に再生中の曲、右に CPU で走る猫
-- **AeroSpace**: 隙間 3、通常のウィンドウは必ずタイル、フローティングは小さな一時ウィンドウだけ
-- **Brother LOGINserver**（Intel 専用）: Nix 管理外。`/Library/LaunchAgents` から plist を外して自動起動を停止
+- **Cleanup**: removed unused sketchybar code (camera list, monospaced rows, unused variables) and merged duplicate AppleScript. Removed `font-hackgen` (unused) and `xxd` (duplicates macOS)
+- **Focus modes**: one list, `focusModes` (now in modules/sketchybar/shared.nix). Added `focus-shortcuts` and a check on `rebuild`
+- **Notification menu**: moved "Notification settings…" under the notifications and added "Add shortcuts…"
+- **Docs**: setup steps for a new Mac and the list of manual settings
+- **Structure**: split sketchybar into `modules/sketchybar/` (one file per item); the generated scripts are identical
+- **Permissions**: added `protected-reader` so sketchybar no longer needs Full Disk Access; the notification badge updates almost instantly
+- **Health check**: added `sketchybar-doctor` and a list of things a macOS update can break (in CLAUDE.md)
 
-### 2026-10-29 AeroSpace 向け macOS 設定
+### 2026-10-29 sketchybar and music
 
-- **sketchybar**: 無効化（設定は残置）。メニューバーを通常表示に戻し、AeroSpace の上ギャップを 37 → 5 に
-- **macOS defaults**: Dock 自動非表示・`expose-group-apps` を追加、WindowManager（ステージマネージャ・標準タイル機能など）を正式オプションで無効化
-- **Homebrew**: `zoom` を追加、手動インストールの JRiver Media Center を `--adopt` で取り込み `media-center` として管理
-- **AeroSpace**: sketchybar への通知（`exec-on-workspace-change`）を `services.sketchybar.enable` に連動させ、無効時は呼ばないように
-- **調査**: Intel 専用アプリと Nix 管理外アプリを洗い出し、一覧化
+- **sketchybar**: re-enabled with items that mirror the standard menu bar (Apple menu, network / nearby Wi-Fi, Bluetooth, VPN, volume slider, battery and power mode, input source, camera, notifications and focus modes). Menus have row highlights and a frosted look
+- **sketchybar**: patched build drawn above the menu bar; height 33, opaque, notch width 186. The standard menu bar stays visible underneath, so notifications appear below the bar
+- **menubar-click-guard**: new agent that keeps clicks on the top edge and corners from reaching the standard menu bar
+- **Clock menu**: calendar drawn as images (holidays, event badges, day selection), add / edit / delete events with alerts, shortcut to calendar accounts. Added `ical-buddy` from Homebrew
+- **Music**: mpd + rmpc + mpc (`home/music.nix`), rmpc theme, Rigelian (App Store). Now playing left of the notch, a CPU-driven running cat right of it
+- **AeroSpace**: gaps of 3, normal windows always tile, only small transient windows float
+- **Brother LOGINserver** (Intel-only): outside Nix; its plist was removed from `/Library/LaunchAgents` to stop it starting
 
-### 2026-10-20 リファクタリング
+### 2026-10-29 macOS settings for AeroSpace
 
-- **Claude Code**: nixpkgs 版（古く更新されない）をやめ、cask に一本化。`/opt/homebrew/bin` を `environment.systemPath` で PATH に追加（手動の PATH 追加は不要に）
-- **sketchybar**: 空だった設定を実装し、nix-darwin の `services.sketchybar` で自動起動
-- **jankyborders**: home-manager の launchd 定義から `services.jankyborders` へ移行
-- **AeroSpace**: 設定を `programs.aerospace` で生成、ログイン時自動起動、`spans-displays` の設定ミスを修正
-- **VS Code**: Nix 版と cask 版の二重インストールを解消し cask に統一。拡張も Homebrew 管理へ
-- **OrbStack**: Nix から cask へ移行
-- **Homebrew**: trusted cask の二重記述を解消、`wireshark` → `wireshark-app`、`brew bundle cleanup` を自動実行、App Store アプリ（Windows App / Excel / Brother）を追加
-- **zsh**: compinit の二重実行と kubectl / helm 補完の毎回生成を削除（起動高速化）、`Ctrl-R` を atuin に統一、`vlc-bd` を修正
-- **構成**: ユーザー名を `flake.nix` で一元定義、セキュリティツールを `home/security.nix` に分離、git 管理を開始
+- **sketchybar**: disabled (config kept). Menu bar back to normal, AeroSpace top gap 37 → 5
+- **macOS defaults**: Dock auto-hide and `expose-group-apps`; WindowManager features (Stage Manager, built-in tiling, etc.) disabled through the proper options
+- **Homebrew**: added `zoom`; adopted the manually installed JRiver Media Center as `media-center`
+- **AeroSpace**: the sketchybar hook (`exec-on-workspace-change`) follows `services.sketchybar.enable`, so it is not called when sketchybar is off
+- **Survey**: listed the Intel-only apps and the apps outside Nix
 
-詳細は [CLAUDE.md](CLAUDE.md) を参照。
+### 2026-10-20 Refactoring
+
+- **Claude Code**: dropped the nixpkgs version (old and not updated) in favor of the cask. `/opt/homebrew/bin` is added to PATH through `environment.systemPath`
+- **sketchybar**: filled in the empty config and started it with nix-darwin's `services.sketchybar`
+- **jankyborders**: moved from a home-manager launchd definition to `services.jankyborders`
+- **AeroSpace**: config generated by `programs.aerospace`, starts at login, fixed the `spans-displays` setting
+- **VS Code**: removed the duplicate Nix and cask installs in favor of the cask; extensions managed by Homebrew
+- **OrbStack**: moved from Nix to a cask
+- **Homebrew**: removed duplicate trusted casks, `wireshark` → `wireshark-app`, automatic `brew bundle cleanup`, added App Store apps (Windows App / Excel / Brother)
+- **zsh**: removed the double compinit and per-start kubectl / helm completion generation (faster startup), `Ctrl-R` is atuin, fixed `vlc-bd`
+- **Structure**: user name defined once in `flake.nix`, security tools split into `home/security.nix`, started tracking with git
+
+See [CLAUDE.md](CLAUDE.md) for details (Japanese).
