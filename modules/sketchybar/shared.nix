@@ -59,7 +59,9 @@ rec {
   # メニューの行にマウスが乗ったら背景を付ける
   hover = plugin "hover" ''
     case "$SENDER" in
-      mouse.entered) sketchybar --set "$NAME" background.drawing=on ;;
+      mouse.entered) # メニューに戻ってきたので、閉じる予定を取り消す（lib.nix の handle_popup）
+                     rm -f "$HOME/Library/Caches/sketchybar-popup-close/''${NAME%%.dyn.*}"
+                     sketchybar --set "$NAME" background.drawing=on ;;
       mouse.exited)  sketchybar --set "$NAME" background.drawing=off ;;
     esac
   '';

@@ -148,6 +148,10 @@ rec {
       done
     }
 
+    # メニューの外に出てから閉じるまでの秒数と、その印を置く場所（handle_popup・hover）
+    POPUP_CLOSE_DELAY=0.6
+    POPUP_CLOSE_DIR="$HOME/Library/Caches/sketchybar-popup-close"
+
     close_all() {
       local args=() p
       for p in $POPUPS; do args+=(--set "$p" popup.drawing=off); done
@@ -201,8 +205,21 @@ rec {
             sketchybar --remove "/$NAME\.dyn\..*/" "''${BATCH[@]}" --set "$NAME" popup.drawing=on 2>/dev/null
           fi
           exit 0 ;;
+        # マウスが項目とメニューの外に出ても、すぐには閉じない（少しはみ出しただけで閉じないように）。
+        # 出たときに印を置いて少し待ち、その間に戻らなければ閉じる。戻ったら（項目か、メニューの
+        # クリックできる行に入ったら）印を消す（行の側は hover スクリプト）
         mouse.exited.global)
-          sketchybar --set "$NAME" popup.drawing=off
+          mkdir -p "$POPUP_CLOSE_DIR"
+          local mark="$$.$RANDOM"
+          echo "$mark" > "$POPUP_CLOSE_DIR/$NAME"
+          sleep "$POPUP_CLOSE_DELAY"
+          if [ "$(cat "$POPUP_CLOSE_DIR/$NAME" 2>/dev/null)" = "$mark" ]; then
+            rm -f "$POPUP_CLOSE_DIR/$NAME"
+            sketchybar --set "$NAME" popup.drawing=off
+          fi
+          exit 0 ;;
+        mouse.entered)
+          rm -f "$POPUP_CLOSE_DIR/$NAME"
           exit 0 ;;
         # 開いたまま中身だけ作り直す（sketchybar --trigger menu_rebuild TARGET=<項目>）
         menu_rebuild)
