@@ -72,6 +72,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 └── home/
     ├── default.nix        # ユーザー情報・dotfiles・imports
     ├── packages.nix       # CLI / インフラ / クラウド
+    ├── gpg.nix            # GnuPG と gpg-agent（pinentry-mac）
     ├── security.nix       # セキュリティツール群（my.security.enable）
     ├── shell.nix          # zsh・starship・atuin・zoxide・fzf・bat・eza・lazygit・direnv
     ├── git.nix            # git + delta
@@ -218,6 +219,15 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 | openlens | Kubernetes GUI |
 | tableplus | データベース GUI |
 | wireshark-app | パケットアナライザ（ChmodBPF 導入済み） |
+
+### YubiKey
+
+| ツール | 入れ方 | 概要 |
+|--------|--------|------|
+| ykman（yubikey-manager） | `home/packages.nix` | PIN・FIDO2・PIV・OATH の設定と管理（`ykman info` で確認） |
+| Yubico Authenticator | cask | 2 段階認証コード（TOTP）の表示・管理 |
+| paperkey | `home/packages.nix` | GPG の秘密鍵を紙のバックアップ用に書き出す |
+| GnuPG（gpg） | `home/gpg.nix` | 署名・暗号化。パスワード（PIN）は pinentry-mac の画面で入力。YubiKey の OpenPGP は `gpg --card-status` で確認 |
 
 ### セキュリティ（`home/security.nix`）
 

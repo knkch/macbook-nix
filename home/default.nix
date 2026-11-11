@@ -5,6 +5,7 @@
     ./security.nix
     ./shell.nix
     ./git.nix
+    ./gpg.nix
     ./nixvim.nix
     ./desktop.nix
     ./vscode.nix

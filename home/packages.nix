@@ -101,6 +101,10 @@
     sops         # 暗号化シークレット管理（age / KMS 対応）
     age          # シンプルな暗号化ツール
 
+    # ── YubiKey ───────────────────────────────────────────────────────────── #
+    yubikey-manager # ykman: PIN・FIDO2・PIV・OATH の設定と管理（アプリは cask の yubico-authenticator）
+    paperkey        # GPG の秘密鍵を紙に印刷できる形で書き出す（紙のバックアップ）
+
     # ── クラウド CLI ──────────────────────────────────────────────────────── #
     awscli2           # AWS CLI v2
     google-cloud-sdk  # gcloud / gsutil / bq

@@ -108,6 +108,7 @@ in
       "proxyman"        # macOS ネイティブ HTTP デバッグプロキシ
       "maltego"         # OSINT / 脅威インテリジェンス GUI
       "temurin@11"      # Maltego が要求する Java 11
+      "yubico-authenticator" # YubiKey の 2 段階認証コード（TOTP）表示・管理（コマンドは home/packages.nix の ykman）
     ];
 
     brews = [
