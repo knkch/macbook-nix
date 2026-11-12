@@ -68,6 +68,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 ├── pkgs/
 │   ├── ax-agent/          # agent that performs accessibility actions on behalf of sketchybar (Objective-C)
 │   ├── menubar-click-guard/  # agent that keeps top-edge clicks on sketchybar (C)
+│   ├── mouse-pos/         # prints the mouse position; used to decide when a menu may close (C)
 │   ├── calendar/          # calendar images for the clock menu (render.py) and event editing (event.js)
 │   ├── focus-shortcuts/   # command that prepares Shortcuts for switching focus modes
 │   ├── protected-reader/  # agent that reads notification / focus state (the only one with Full Disk Access)
@@ -142,7 +143,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 - The macOS menu bar always stays visible and sketchybar (same height 33, opaque) covers it, so notification banners appear below the bar. AeroSpace gaps are 3.
 - Clock menu: a month calendar drawn as images (holidays, event count badges), click a day to see its events, add / edit / delete events with alerts (Google / Outlook calendars sync once added under Internet Accounts).
 - Network menu: the five strongest nearby Wi-Fi networks (the rest fold under "ほかのネットワーク" / other networks and expand in place), then a separate "Personal Hotspot" section that lists your iPhone by name (devices paired over Bluetooth that you have also joined over Wi-Fi). Clicking it joins directly when the hotspot is broadcasting; otherwise it opens the standard Wi-Fi menu, because Instant Hotspot does not show up in a normal scan. Sections are separated by a thin line.
-- Menus stay open for 0.6 s after the mouse leaves them, so a small slip does not close them.
+- Menus close only after the mouse has stayed outside them for 0.6 s (checked by position, so headers, separators and menu refreshes do not close them).
 - "Displays have separate Spaces" is off (recommended by AeroSpace; needs a logout to take effect).
 - Dock auto-hides, Spaces are not rearranged automatically, Mission Control groups windows by app.
 - Stage Manager, click-wallpaper-to-show-desktop and macOS window tiling (edge drag / Option-drag) are off because they conflict with AeroSpace.

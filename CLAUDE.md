@@ -49,6 +49,7 @@ rebuild   # zsh エイリアス
 | `pkgs/menubar-click-guard/` | 画面上端・上の角のクリックを sketchybar に届くよう内側に移す常駐プログラム（C、イベントタップ） |
 | `pkgs/ax-agent/` | アクセシビリティが必要な操作（前面アプリのメニューを読む・開く、通知センター・ビデオエフェクト・Wi-Fi メニューを開く、カメラの使用中の判定、⌃Space などのキー操作）だけを行う常駐プログラム（Objective-C）。sketchybar は `~/Library/Caches/sketchybar-ax/sock` に 1 行で頼む（`ax` 関数、lib.nix）。アクセシビリティはこれだけに与える |
 | `pkgs/protected-reader/` | 通知の履歴と集中モードの状態（保護領域）を読み、`~/Library/Caches/sketchybar-protected` に書き出す常駐プログラム（Objective-C）。フルディスクアクセスはこれだけに与える |
+| `pkgs/mouse-pos/` | マウスの位置を「x y」で出す小さなコマンド（C）。sketchybar のメニューを閉じてよいかの判定に使う。macOS の許可は要らない |
 | `pkgs/focus-shortcuts/` | 集中モードの切り替え用ショートカットを用意するコマンド `focus-shortcuts`。中身（署名前）は `gen.py` でビルド時に作り、署名と取り込みは実行時。モードの一覧は modules/sketchybar/shared.nix の `focusModes` |
 
 ### 配置の原則
@@ -164,8 +165,10 @@ sketchybar の項目（クリックでメニュー。メニューは開くたび
   日本語のロケールでは bash が全角文字のバイトまで変数名として読み、メニューに「Warning: Malformed UTF-8 string」と出る。
 - まとまりの区切りは `menu_section`（lib.nix）: 見出しの行の背景を高さ 1 にして上端へずらした線（専用の行を足すと高さ 33 の空行になるため）。
 - メニューはバーに隙間なく付ける（`popup.y_offset=0`）。隙間があるとマウスがそこを通るときにメニューが閉じる。
-- マウスが項目とメニューの外に出ても 0.6 秒待ってから閉じる（`POPUP_CLOSE_DELAY`、lib.nix の `handle_popup`）。出たときに
-  `~/Library/Caches/sketchybar-popup-close/<項目>` に印を置き、その間に項目かクリックできる行に戻れば（`mouse.entered`。行は `hover`）印を消して閉じない。
+- マウスが項目とメニューの外に出ても、続けて 0.6 秒外にいるまで閉じない（lib.nix の `handle_popup` / `popup_has_mouse`）。
+  `mouse.exited.global` のあと 0.2 秒ごとにマウスの位置（`pkgs/mouse-pos`、許可は要らない）と、項目・メニューの最初と最後の行の位置（`--query` の
+  `bounding_rects`、周り 8 の余白込み）を比べる。sketchybar の「出た」は見出しや区切りの上、メニューの作り直し（Wi-Fi のスキャン後など）でも届き、
+  そのあと「入った」が届かないことがあるため、合図ではなく位置で決める。見張りの印は `~/Library/Caches/sketchybar-popup-close/<項目>`（次の「出た」で入れ替わる）。
 - バーの色は不透明（`0xff1a1b26`）。常に表示している標準メニューバーが下から透けないように。
 - メニュー（ポップアップ）は少し透かしてぼかす（`0xb01a1b26` + `popup.blur_radius=30`）。
 - メニューの中身は `BATCH` に貯めて、古い行の削除と一緒に 1 回の sketchybar 呼び出しで送る（裏の Wi-Fi スキャン後の作り直しなどと

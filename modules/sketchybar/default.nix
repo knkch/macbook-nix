@@ -103,7 +103,7 @@ in
       POPUP="popup.background.color=0xb01a1b26 popup.background.corner_radius=8 \
         popup.background.border_width=1 popup.background.border_color=0xff414868 \
         popup.blur_radius=30 popup.y_offset=0"
-      MENU="mouse.clicked mouse.entered mouse.exited.global"
+      MENU="mouse.clicked mouse.exited.global"
 
       # ── 左: Apple メニュー ──
       sketchybar --add item apple left \

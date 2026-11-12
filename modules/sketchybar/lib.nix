@@ -1,7 +1,7 @@
 # 各プラグインが読み込む共通関数（sketchybar-lib.sh）: 色・メニューの作り方・集中モード・カレンダー
 ctx:
 let
-  inherit (ctx) calEvent calRender focusModes hover jq pkgs wifiSsid;
+  inherit (ctx) calEvent calRender focusModes hover jq mousePos pkgs wifiSsid;
 in
 rec {
   # ── 共通関数（各プラグインが読み込む）──────────────────────────────────── #
@@ -152,9 +152,27 @@ rec {
       done
     }
 
-    # メニューの外に出てから閉じるまでの秒数と、その印を置く場所（handle_popup・hover）
-    POPUP_CLOSE_DELAY=0.6
+    # メニューの外に出てから閉じるまで: 0.2 秒ごとに見て、続けて POPUP_CLOSE_TICKS 回（0.6 秒）外なら閉じる。
+    # 見張りの印を置く場所（handle_popup）
+    POPUP_CLOSE_TICKS=3
     POPUP_CLOSE_DIR="$HOME/Library/Caches/sketchybar-popup-close"
+
+    # popup_has_mouse <項目>: マウスがその項目かメニューの上（周り 8 の余白込み）にあれば真。
+    # メニューが閉じていれば 2。範囲は項目とメニューの最初・最後の行の位置から求める（行は縦に並ぶ）
+    popup_has_mouse() {
+      local q first last mx my
+      q="$(sketchybar --query "$1" 2>/dev/null)" || return 2
+      [ "$(printf '%s' "$q" | ${jq} -r .popup.drawing)" = on ] || return 2
+      read -r first last < <(printf '%s' "$q" | ${jq} -r '.popup.items | "\(.[0] // "") \(.[-1] // "")"')
+      read -r mx my < <(${mousePos}) || return 0
+      { printf '%s\n' "$q"
+        [ -n "$first" ] && sketchybar --query "$first"
+        [ -n "$last" ] && sketchybar --query "$last"
+      } 2>/dev/null | ${jq} -s -e --argjson mx "$mx" --argjson my "$my" '
+          [.[] | (.bounding_rects // {}) | .[]] as $r | ($r | length) > 0
+          and $mx >= ($r | map(.origin[0]) | min) - 8 and $mx <= ($r | map(.origin[0] + .size[0]) | max) + 8
+          and $my >= ($r | map(.origin[1]) | min) - 8 and $my <= ($r | map(.origin[1] + .size[1]) | max) + 8' >/dev/null
+    }
 
     close_all() {
       local args=() p
@@ -218,21 +236,25 @@ rec {
             sketchybar --remove "/$NAME\.dyn\..*/" "''${BATCH[@]}" --set "$NAME" popup.drawing=on 2>/dev/null
           fi
           exit 0 ;;
-        # マウスが項目とメニューの外に出ても、すぐには閉じない（少しはみ出しただけで閉じないように）。
-        # 出たときに印を置いて少し待ち、その間に戻らなければ閉じる。戻ったら（項目か、メニューの
-        # クリックできる行に入ったら）印を消す（行の側は hover スクリプト）
+        # マウスが項目とメニューの外に出ても、すぐには閉じない。sketchybar の「出た」は、見出しや区切りの上、
+        # メニューの作り直し（Wi-Fi のスキャン後など）でも届き、そのあと「入った」は届かないことがあるので、
+        # 合図には頼らずマウスの位置を見る: 0.2 秒ごとに確かめ、続けて 0.6 秒メニューの外にいたら閉じる。
+        # 次の「出た」で印が変わったら古い見張りはやめる。メニューが閉じたらやめる
         mouse.exited.global)
           mkdir -p "$POPUP_CLOSE_DIR"
-          local mark="$$.$RANDOM"
+          local mark="$$.$RANDOM" out=0 r
           echo "$mark" > "$POPUP_CLOSE_DIR/$NAME"
-          sleep "$POPUP_CLOSE_DELAY"
-          if [ "$(cat "$POPUP_CLOSE_DIR/$NAME" 2>/dev/null)" = "$mark" ]; then
-            rm -f "$POPUP_CLOSE_DIR/$NAME"
-            sketchybar --set "$NAME" popup.drawing=off
-          fi
-          exit 0 ;;
-        mouse.entered)
-          rm -f "$POPUP_CLOSE_DIR/$NAME"
+          while [ "$(cat "$POPUP_CLOSE_DIR/$NAME" 2>/dev/null)" = "$mark" ]; do
+            popup_has_mouse "$NAME"; r=$?
+            [ "$r" = 2 ] && break
+            if [ "$r" = 0 ]; then out=0; else out=$((out + 1)); fi
+            if [ "$out" -ge "$POPUP_CLOSE_TICKS" ]; then
+              sketchybar --set "$NAME" popup.drawing=off
+              break
+            fi
+            sleep 0.2
+          done
+          [ "$(cat "$POPUP_CLOSE_DIR/$NAME" 2>/dev/null)" = "$mark" ] && rm -f "$POPUP_CLOSE_DIR/$NAME"
           exit 0 ;;
         # 開いたまま中身だけ作り直す（sketchybar --trigger menu_rebuild TARGET=<項目>）
         menu_rebuild)
