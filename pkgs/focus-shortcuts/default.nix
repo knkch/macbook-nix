@@ -31,7 +31,7 @@ writeShellScriptBin "focus-shortcuts" ''
     if printf '%s\n' "$list" | /usr/bin/grep -qxF -- "$name"; then
       echo "✓ $name"
     else
-      echo "✗ $name（ありません）"
+      echo "✗ ''${name}（ありません）"
       missing+=("$file"$'\t'"$name")
     fi
   done < ${unsigned}/manifest.tsv

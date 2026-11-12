@@ -55,8 +55,8 @@ rec {
         [ -z "$id" ] && continue
         i=$((i + 1))
         case "$st" in
-          Connected)  menu_item $p "vpn.$i" "󰖂" "$name（接続中）" vpn-stop "$id" ;;
-          Connecting) menu_item $p "vpn.$i" "󰖂" "$name（接続処理中）" vpn-stop "$id" ;;
+          Connected)  menu_item $p "vpn.$i" "󰖂" "''${name}（接続中）" vpn-stop "$id" ;;
+          Connecting) menu_item $p "vpn.$i" "󰖂" "''${name}（接続処理中）" vpn-stop "$id" ;;
           *)          menu_item $p "vpn.$i" "󰖂" "$name" vpn-start "$id" ;;
         esac
       done < <(vpn_services)

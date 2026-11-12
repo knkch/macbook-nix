@@ -8,7 +8,7 @@ rec {
   action = plugin "action" ''
     . ${shLib}
     # メニュー内の操作（カレンダーの月送り）以外はメニューを閉じる
-    case "$1" in cal-* | notify-clear | focus-toggle) ;; *) close_all ;; esac
+    case "$1" in cal-* | notify-clear | focus-toggle | wifi-more) ;; *) close_all ;; esac
 
     # 入力画面の部品（どれもキャンセルなら失敗を返す）。画面のタイトルは DIALOG_TITLE
     DIALOG_TITLE="予定"
@@ -205,10 +205,10 @@ rec {
         DIALOG_TITLE="予定"
         IFS=$'\x1f' read -r id label editable < <(sed -n "$2p" "$CAL_DIR/events" 2>/dev/null)
         [ -n "$id" ] || exit 0
-        if [ "$editable" != 1 ]; then notify_msg "変更できない予定です" "$label（祝日など、読み取り専用のカレンダー）"; exit 0; fi
+        if [ "$editable" != 1 ]; then notify_msg "変更できない予定です" "''${label}（祝日など、読み取り専用のカレンダー）"; exit 0; fi
         what="$(choose "$label" "$(printf '%s\n' 編集… 削除)")" || exit 0
         if [ "$what" = 削除 ]; then
-          confirm "「$label」を削除しますか？" 削除 || exit 0
+          confirm "「''${label}」を削除しますか？" 削除 || exit 0
           result="$(${calEvent} delete "$id" 2>&1)"
         else
           DIALOG_TITLE="予定を編集"
@@ -269,9 +269,20 @@ rec {
         fi
         [ -n "$out" ] && notify_msg "Wi-Fi に接続できませんでした" "$out"
         refresh 3 ;;
-      # iPhone のテザリング（インスタントホットスポット）: CoreWLAN のスキャンには出ないので、
-      # 標準メニューバーの Wi-Fi メニューを開き、その「パーソナルホットスポット」から選んでもらう
+      # Wi-Fi の一覧を広げる（wifi-more 1）/ たたむ（wifi-more 0）。メニューは開いたまま作り直す
+      wifi-more)
+        if [ "$2" = 1 ]; then touch "$WIFI_EXPANDED"; else rm -f "$WIFI_EXPANDED"; fi
+        sketchybar --trigger menu_rebuild TARGET=wifi ;;
+      # iPhone のテザリング（wifi-hotspot [番号]。番号は $WIFI_HOTSPOTS の行）: 電波が出ていて直近のスキャンに名前があれば、
+      # そのまま接続する（パスワードはキーチェーンにある）。出ていなければ（インスタントホットスポットは
+      # CoreWLAN のスキャンに出ない）標準メニューバーの Wi-Fi メニューを開き、そこから選んでもらう
       wifi-hotspot)
+        dev="$(wifi_dev)"
+        name="$([ -n "$2" ] && sed -n "$2p" "$WIFI_HOTSPOTS" 2>/dev/null)"
+        if [ -n "$name" ] && cut -d$'\x1f' -f1 "$WIFI_SCAN" 2>/dev/null | grep -qxF "$name" \
+          && [ -z "$(networksetup -setairportnetwork "$dev" "$name" 2>&1)" ]; then
+          refresh 3; exit 0
+        fi
         click_menuextra wifi \
           || notify_msg "iPhone のテザリング" "Wi-Fi メニューを開けませんでした（ax-agent の許可を確認: sketchybar-doctor）" ;;
       # ビデオエフェクト（ポートレート・センターフレーム・背景など）: カメラ使用中だけ標準メニューバーに出る

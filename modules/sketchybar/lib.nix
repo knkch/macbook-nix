@@ -16,6 +16,9 @@ rec {
     # 通知を「すべて消去」した時刻（Mac の日時 = 2001-01-01 からの秒数）。これより前の通知は表示しない
     NOTIFY_CLEARED="$HOME/Library/Caches/sketchybar-notify-cleared"
     WIFI_SCAN="$HOME/Library/Caches/sketchybar-wifi-scan" # 直近のスキャン結果
+    WIFI_HOTSPOTS="$HOME/Library/Caches/sketchybar-wifi-hotspots" # メニューに出したテザリングの機器（1 行 1 台）
+    WIFI_EXPANDED="$HOME/Library/Caches/sketchybar-wifi-expanded" # あれば Wi-Fi の一覧を広げて表示
+    WIFI_FOLD=5 # たたんだときに出す Wi-Fi の件数
     # カレンダー: 選んだ日（YYYY-MM-DD）・画像の置き場所・予定の行数
     CAL_SEL="''${TMPDIR:-/tmp}/sketchybar-cal-selected"
     CAL_DIR="''${TMPDIR:-/tmp}/sketchybar-calendar"
@@ -67,7 +70,7 @@ rec {
     }
 
     # クリックできる行（ハイライトし、幅を揃える）と、メニュー幅いっぱいで中央に寄せる行
-    CLICKABLE_ROWS=(); CENTER_ROWS=()
+    CLICKABLE_ROWS=(); CENTER_ROWS=(); SECTION_ROWS=()
     # メニューの中身はここに貯めて、最後に 1 回の sketchybar 呼び出しでまとめて送る。
     # 途中で別の処理（裏のスキャン後の作り直しなど）が割り込んで行の順番が崩れないように
     BATCH=()
@@ -96,6 +99,7 @@ rec {
       local row
       for row in "''${CLICKABLE_ROWS[@]}"; do BATCH+=(--set "$row" width="$MAX_WIDTH"); done
       for row in "''${CENTER_ROWS[@]}"; do BATCH+=(--set "$row" width="$MAX_WIDTH" align=center); done
+      for row in "''${SECTION_ROWS[@]}"; do BATCH+=(--set "$row" width="$MAX_WIDTH"); done
       return 0
     }
 
@@ -177,6 +181,15 @@ rec {
         label="$3" label.font="Hack Nerd Font:Bold:11.0" label.color=$ACCENT
         label.padding_left=10 padding_left=0)
       estimate "$3" 24 65 110
+    }
+
+    # menu_section <親> <名前> <見出し>: 行の上端に区切り線を引いた見出し（前のまとまりと分ける）。
+    # 線は行の背景を高さ 1 にして上へずらしたもの（行の高さはバーと同じ 33）。幅はメニューの幅に揃える
+    menu_section() {
+      menu_header "$1" "$2" "$3"
+      BATCH+=(--set "$1.dyn.$2" background.drawing=on background.color=0xff414868
+        background.height=1 background.y_offset=15)
+      SECTION_ROWS+=("$1.dyn.$2")
     }
 
     # menu_slider <親> <名前> <アイコン> <割合> <スクリプト>
